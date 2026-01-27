@@ -5,12 +5,17 @@ import Cropper from "cropperjs";
 import "cropperjs/dist/cropper.css";
 import { generateSignatureHtml, SignatureData } from "@/src/template";
 
-interface SavedSignature extends SignatureData {
+interface SavedSignature {
   id: string;
   createdAt: number;
-  name: string; // Ensure name is always present for display
   html: string; // Stored HTML signature (frozen at save time)
 }
+
+// Helper function to extract name from HTML signature
+const extractNameFromHtml = (html: string): string => {
+  const match = html.match(/<h3[^>]*>([^<]+)<\/h3>/);
+  return match ? match[1].trim() : "Signature";
+};
 
 // API utilities
 const fetchSavedSignatures = async (): Promise<SavedSignature[]> => {
@@ -36,8 +41,7 @@ const saveSignature = async (
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      ...signature,
-      html, // Include the generated HTML
+      html, // Only send HTML
     }),
   });
 
@@ -76,8 +80,16 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [savedSignatures, setSavedSignatures] = useState<SavedSignature[]>([]);
-  const [showSavedSection, setShowSavedSection] = useState(false);
   const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
+  const [isSavingSignature, setIsSavingSignature] = useState(false);
+  const [deletingSignatureIds, setDeletingSignatureIds] = useState<Set<string>>(new Set());
+  const [currentSavedSignature, setCurrentSavedSignature] =
+    useState<SavedSignature | null>(null);
+  const [originalImageInfo, setOriginalImageInfo] = useState<{
+    size: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const cropperRef = useRef<Cropper | null>(null);
   const cropImageRef = useRef<HTMLImageElement>(null);
@@ -163,9 +175,11 @@ export default function Home() {
   const showToast = (message: string) => {
     setToastMessage(message);
     setToastVisible(true);
+    // Longer timeout for detailed messages (like image optimization feedback)
+    const timeout = message.length > 50 ? 10000 : 4000; // 10 seconds for detailed, 4 seconds for short
     setTimeout(() => {
       setToastVisible(false);
-    }, 2500);
+    }, timeout);
   };
 
   const autoGenerateEmail = (name: string) => {
@@ -179,82 +193,94 @@ export default function Home() {
 
       if (emailName) {
         setFormData((prev) => ({ ...prev, email: `${emailName}@bepp.se` }));
+        // Clear current saved signature when email is auto-generated
+        if (currentSavedSignature) {
+          setCurrentSavedSignature(null);
+        }
       }
     }
   };
 
   const handleInputChange = (field: keyof SignatureData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear current saved signature when form data changes (user is editing)
+    if (currentSavedSignature) {
+      setCurrentSavedSignature(null);
+    }
   };
 
   const handleNameBlur = () => {
     autoGenerateEmail(formData.name);
   };
 
-  const copyToClipboard = async () => {
-    if (!formData.name) {
-      showToast("Please fill in at least a name");
-      return;
-    }
+  const isSignatureComplete = (): boolean => {
+    return (
+      !!formData.name &&
+      !!formData.title &&
+      !!formData.email &&
+      !!formData.phone &&
+      !!formData.photoUrl
+    );
+  };
 
-    const html = generateSignatureHtml(formData);
+  const getMissingFields = (): string[] => {
+    const missing: string[] = [];
+    if (!formData.name) missing.push("name");
+    if (!formData.title) missing.push("title");
+    if (!formData.email) missing.push("email");
+    if (!formData.phone) missing.push("phone");
+    if (!formData.photoUrl) missing.push("photo");
+    return missing;
+  };
 
-    try {
-      await navigator.clipboard.writeText(html);
-      showToast("Copied to clipboard!");
-    } catch (err) {
-      // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = html;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      showToast("Copied to clipboard!");
-    }
+  const getDisabledTooltip = (): string => {
+    const missing = getMissingFields();
+    if (missing.length === 0) return "Save your signature";
+
+    const fieldsList = missing
+      .map((field) => {
+        if (field === "photo") return "photo";
+        return field;
+      })
+      .join(", ");
+
+    return `Please fill in: ${fieldsList}`;
   };
 
   const saveCurrentSignature = async () => {
-    if (!formData.name) {
-      showToast("Please fill in at least a name");
+    if (!isSignatureComplete()) {
+      showToast(
+        "Please fill in all fields (name, title, email, phone) and upload a photo",
+      );
       return;
     }
 
+    setIsSavingSignature(true);
     try {
       // Generate the HTML signature at save time
       const html = generateSignatureHtml(formData);
-      await saveSignature(formData, html);
+      const saved = await saveSignature(formData, html);
+      // Set as current saved signature so it can be copied
+      setCurrentSavedSignature(saved);
       // Refresh the signatures list
       const signatures = await fetchSavedSignatures();
       setSavedSignatures(signatures);
-      showToast("Signature saved!");
-      setShowSavedSection(true);
+      showToast("Signature saved! You can now copy it.");
     } catch (error) {
       console.error("Error saving signature:", error);
       showToast(
         error instanceof Error ? error.message : "Failed to save signature",
       );
+    } finally {
+      setIsSavingSignature(false);
     }
   };
 
-  const loadSignature = (signature: SavedSignature) => {
-    setFormData({
-      name: signature.name,
-      title: signature.title,
-      email: signature.email,
-      phone: signature.phone,
-      photoUrl: signature.photoUrl,
-    });
-    showToast("Signature loaded!");
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  // Note: loadSignature removed - signatures can only be copied, not loaded for editing
 
-  const handleDeleteSignature = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteSignature = async (id: string) => {
     if (confirm("Are you sure you want to delete this signature?")) {
+      setDeletingSignatureIds((prev) => new Set(prev).add(id));
       try {
         await deleteSignature(id);
         // Refresh the signatures list
@@ -266,7 +292,32 @@ export default function Home() {
         showToast(
           error instanceof Error ? error.message : "Failed to delete signature",
         );
+      } finally {
+        setDeletingSignatureIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
       }
+    }
+  };
+
+  const handleCopySignature = async (signature: SavedSignature) => {
+    const html = signature.html;
+    try {
+      await navigator.clipboard.writeText(html);
+      showToast("Signature copied to clipboard!");
+    } catch (err) {
+      // Fallback for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = html;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      showToast("Signature copied to clipboard!");
     }
   };
 
@@ -282,11 +333,35 @@ export default function Home() {
       return;
     }
 
+    // Store original file size
+    const originalSize = file.size;
+
     const reader = new FileReader();
     reader.onload = (e) => {
       if (e.target?.result) {
-        setCropImageSrc(e.target.result as string);
-        setIsCropModalOpen(true);
+        const imageSrc = e.target.result as string;
+        setCropImageSrc(imageSrc);
+
+        // Get image dimensions
+        const img = new Image();
+        img.onload = () => {
+          setOriginalImageInfo({
+            size: originalSize,
+            width: img.width,
+            height: img.height,
+          });
+          setIsCropModalOpen(true);
+        };
+        img.onerror = () => {
+          // If we can't get dimensions, still open modal with size info
+          setOriginalImageInfo({
+            size: originalSize,
+            width: 0,
+            height: 0,
+          });
+          setIsCropModalOpen(true);
+        };
+        img.src = imageSrc;
       }
     };
     reader.readAsDataURL(file);
@@ -299,6 +374,7 @@ export default function Home() {
   const closeCropModal = () => {
     setIsCropModalOpen(false);
     setCropImageSrc("");
+    setOriginalImageInfo(null);
     if (cropperRef.current) {
       cropperRef.current.destroy();
       cropperRef.current = null;
@@ -348,8 +424,50 @@ export default function Home() {
       const result = await response.json();
 
       setFormData((prev) => ({ ...prev, photoUrl: result.url }));
+      // Clear current saved signature when photo changes
+      if (currentSavedSignature) {
+        setCurrentSavedSignature(null);
+      }
+
+      // Format file sizes
+      const formatFileSize = (bytes: number): string => {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+      };
+
+      // Create feedback message using original image info (before client-side crop)
+      if (originalImageInfo && originalImageInfo.width > 0) {
+        const originalSize = originalImageInfo.size;
+        const finalSize = result.size;
+        const sizeReduction = originalSize - finalSize;
+        const sizeReductionPercent = (
+          (sizeReduction / originalSize) *
+          100
+        ).toFixed(0);
+
+        let feedbackMessage: string;
+        if (result.optimized) {
+          // Server-side optimization was applied
+          feedbackMessage = `Image optimized: ${originalImageInfo.width}×${originalImageInfo.height} → ${result.processedWidth}×${result.processedHeight}. Size reduced from ${formatFileSize(originalSize)} to ${formatFileSize(finalSize)} (${sizeReductionPercent}% smaller)`;
+        } else {
+          // Client-side processing was sufficient
+          feedbackMessage = `Image processed: ${originalImageInfo.width}×${originalImageInfo.height} → ${result.processedWidth}×${result.processedHeight}. Size reduced from ${formatFileSize(originalSize)} to ${formatFileSize(finalSize)} (${sizeReductionPercent}% smaller)`;
+        }
+        showToast(feedbackMessage);
+      } else {
+        // Fallback if we don't have original dimensions
+        const sizeReduction = result.originalSize - result.size;
+        const sizeReductionPercent = (
+          (sizeReduction / result.originalSize) *
+          100
+        ).toFixed(0);
+        const action = result.optimized ? "optimized" : "processed";
+        const feedbackMessage = `Image ${action} to ${result.processedWidth}×${result.processedHeight}. Size reduced from ${formatFileSize(result.originalSize)} to ${formatFileSize(result.size)} (${sizeReductionPercent}% smaller)`;
+        showToast(feedbackMessage);
+      }
+
       closeCropModal();
-      showToast("Photo uploaded successfully!");
     } catch (error) {
       console.error("Upload error:", error);
       showToast(
@@ -362,6 +480,10 @@ export default function Home() {
 
   const removePhoto = () => {
     setFormData((prev) => ({ ...prev, photoUrl: "" }));
+    // Clear current saved signature when photo is removed
+    if (currentSavedSignature) {
+      setCurrentSavedSignature(null);
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -395,9 +517,9 @@ export default function Home() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Email Signature Generator</h1>
+        <h1>Bepp Email Signature Generator</h1>
         <p className="subtitle">
-          Fill in the details below to generate your BEPP email signature
+          Fill in the details below to generate your Bepp email signature
         </p>
       </header>
 
@@ -565,129 +687,179 @@ export default function Home() {
               </div>
             </div>
           </div>
+          <div className="preview-actions">
+            <div className="save-button-wrapper">
+              <button
+                type="button"
+                className="btn-primary btn-save-cta"
+                onClick={saveCurrentSignature}
+                disabled={!isSignatureComplete() || isSavingSignature}
+                title={getDisabledTooltip()}
+                aria-label={getDisabledTooltip()}
+              >
+                {isSavingSignature ? (
+                  <>
+                    <svg
+                      className="spinner"
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                      <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                      <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                    Save Signature
+                  </>
+                )}
+              </button>
+              {!isSignatureComplete() && (
+                <div className="save-button-hint">
+                  Missing: {getMissingFields().join(", ")}
+                </div>
+              )}
+            </div>
+          </div>
         </section>
       </main>
 
       {/* Saved Signatures Section */}
-      {savedSignatures.length > 0 && (
-        <section className="saved-section">
-          <div className="saved-header">
-            <h2>Saved Signatures</h2>
-            <button
-              type="button"
-              className="toggle-saved-btn"
-              onClick={() => setShowSavedSection(!showSavedSection)}
-            >
-              {showSavedSection ? "Hide" : "Show"} ({savedSignatures.length})
-            </button>
-          </div>
-          {showSavedSection && (
-            <div className="saved-list">
-              {isLoadingSignatures ? (
-                <div className="saved-loading">Loading signatures...</div>
-              ) : savedSignatures.length === 0 ? (
-                <div className="saved-empty">
-                  No saved signatures yet. Create one and click "Save Signature"
-                  to get started!
-                </div>
-              ) : (
-                savedSignatures.map((signature) => (
-                  <div
-                    key={signature.id}
-                    className="saved-item"
-                    onClick={() => loadSignature(signature)}
-                  >
-                    <div className="saved-item-preview">
-                      <div
-                        dangerouslySetInnerHTML={{
-                          // Use stored HTML if available, otherwise fallback to regenerating (for backward compatibility)
-                          __html:
-                            signature.html || generateSignatureHtml(signature),
-                        }}
-                      />
-                    </div>
-                    <div className="saved-item-info">
-                      <div className="saved-item-name">{signature.name}</div>
-                      <div className="saved-item-meta">
-                        {signature.title && <span>{signature.title}</span>}
-                        <span className="saved-item-date">
-                          {new Date(signature.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="saved-item-delete"
-                      onClick={(e) => handleDeleteSignature(signature.id, e)}
-                      title="Delete signature"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      <footer className="actions">
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={saveCurrentSignature}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-            <polyline points="7 3 7 8 15 8"></polyline>
-          </svg>
-          Save Signature
-        </button>
-        <button type="button" className="btn-primary" onClick={copyToClipboard}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          Copy HTML to Clipboard
-        </button>
-        <div className={`toast ${toastVisible ? "visible" : "hidden"}`}>
-          {toastMessage}
+      <section className="saved-section">
+        <div className="saved-header">
+          <h2>Saved Signatures</h2>
         </div>
-      </footer>
+        <div className="saved-list">
+          {isLoadingSignatures ? (
+            <div className="saved-loading">Loading signatures...</div>
+          ) : savedSignatures.length === 0 ? (
+            <div className="saved-empty">
+              No saved signatures yet. Create one and click "Save Signature" to
+              get started!
+            </div>
+          ) : (
+            savedSignatures.map((signature) => (
+              <div key={signature.id} className="saved-item">
+                <div className="saved-item-preview">
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: signature.html,
+                    }}
+                  />
+                </div>
+                <div className="saved-item-info">
+                  <div className="saved-item-date">
+                    {new Date(signature.createdAt).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="saved-item-actions">
+                  <button
+                    type="button"
+                    className="saved-item-btn saved-item-btn-copy"
+                    onClick={() => handleCopySignature(signature)}
+                    title="Copy signature HTML"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    className="saved-item-btn saved-item-btn-delete"
+                    onClick={() => handleDeleteSignature(signature.id)}
+                    disabled={deletingSignatureIds.has(signature.id)}
+                    title="Delete signature"
+                  >
+                    {deletingSignatureIds.has(signature.id) ? (
+                      <>
+                        <svg
+                          className="spinner"
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                        Delete
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* Toast Notification */}
+      <div className={`toast ${toastVisible ? "visible" : "hidden"}`}>
+        {toastMessage}
+      </div>
 
       {/* Crop Modal */}
       {isCropModalOpen && (

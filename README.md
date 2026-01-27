@@ -1,6 +1,6 @@
 # bepp-email-signature
 
-A Next.js application for generating BEPP email signatures with photo upload functionality.
+A Next.js application for generating Bepp email signatures with photo upload functionality.
 
 ## Running Locally
 

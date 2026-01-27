@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BEPP Email Signature Generator",
+  title: "Bepp Email Signature Generator",
   description:
-    "Fill in the details below to generate your BEPP email signature",
+    "Fill in the details below to generate your Bepp email signature",
 };
 
 export default function RootLayout({

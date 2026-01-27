@@ -1,8 +1,7 @@
 import { put, list, del } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
-import { SignatureData } from "@/src/template";
 
-interface SavedSignature extends SignatureData {
+interface SavedSignature {
   id: string;
   createdAt: number;
   html: string; // Store the full generated HTML signature
@@ -13,16 +12,9 @@ const SIGNATURES_PREFIX = "signatures/";
 // POST - Save a signature
 export async function POST(request: NextRequest) {
   try {
-    const data: SignatureData & { html?: string } = await request.json();
+    const data: { html?: string } = await request.json();
 
     // Validate required fields
-    if (!data.name) {
-      return NextResponse.json(
-        { error: "Name is required" },
-        { status: 400 },
-      );
-    }
-
     if (!data.html) {
       return NextResponse.json(
         { error: "HTML signature is required" },
@@ -34,16 +26,11 @@ export async function POST(request: NextRequest) {
     const id = `sig-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const filename = `${SIGNATURES_PREFIX}${id}.json`;
 
-    // Create signature object with stored HTML
+    // Create signature object with only HTML and creation date
     const signature: SavedSignature = {
-      name: data.name,
-      title: data.title || "",
-      email: data.email || "",
-      phone: data.phone || "",
-      photoUrl: data.photoUrl || "",
       id,
       createdAt: Date.now(),
-      html: data.html, // Store the full HTML signature
+      html: data.html,
     };
 
     // Convert to JSON blob
