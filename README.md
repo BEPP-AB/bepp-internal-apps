@@ -18,9 +18,7 @@ A Next.js application for generating BEPP email signatures with photo upload fun
 	```
 
 	Populate the `.env.local` file with your Vercel Blob storage token:
-	```
-	BLOB_READ_WRITE_TOKEN=your_token_here
-	```
+
 
 2. Install dependencies:
    ```bash
