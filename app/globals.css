@@ -138,6 +138,24 @@ body {
   color: var(--text-muted);
 }
 
+.form-group input.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.form-group input.error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.form-group .field-error {
+  display: block;
+  font-size: 0.8rem;
+  color: #ef4444;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
 .form-group .hint {
   display: block;
   font-size: 0.8rem;
@@ -374,6 +392,16 @@ body {
 .photo-upload-area.drag-over {
   border-color: var(--accent);
   background: rgba(39, 61, 83, 0.05);
+}
+
+.photo-upload-area.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.photo-upload-area.error:hover {
+  border-color: #ef4444;
+  background: #fee2e2;
 }
 
 .upload-placeholder {

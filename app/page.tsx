@@ -90,6 +90,7 @@ export default function Home() {
     width: number;
     height: number;
   } | null>(null);
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
 
   const cropperRef = useRef<Cropper | null>(null);
   const cropImageRef = useRef<HTMLImageElement>(null);
@@ -233,21 +234,21 @@ export default function Home() {
     return missing;
   };
 
-  const getDisabledTooltip = (): string => {
-    const missing = getMissingFields();
-    if (missing.length === 0) return "Save your signature";
+  const getFieldError = (field: keyof SignatureData | "photo"): string | null => {
+    if (!hasAttemptedSave) return null;
+    if (field === "photo") {
+      return !formData.photoUrl ? "Photo is required" : null;
+    }
+    return !formData[field] ? `${field.charAt(0).toUpperCase() + field.slice(1)} is required` : null;
+  };
 
-    const fieldsList = missing
-      .map((field) => {
-        if (field === "photo") return "photo";
-        return field;
-      })
-      .join(", ");
-
-    return `Please fill in: ${fieldsList}`;
+  const hasFieldError = (field: keyof SignatureData | "photo"): boolean => {
+    return getFieldError(field) !== null;
   };
 
   const saveCurrentSignature = async () => {
+    setHasAttemptedSave(true);
+    
     if (!isSignatureComplete()) {
       showToast(
         "Please fill in all fields (name, title, email, phone) and upload a photo",
@@ -265,6 +266,8 @@ export default function Home() {
       // Refresh the signatures list
       const signatures = await fetchSavedSignatures();
       setSavedSignatures(signatures);
+      // Clear validation state on successful save
+      setHasAttemptedSave(false);
       showToast("Signature saved! You can now copy it.");
     } catch (error) {
       console.error("Error saving signature:", error);
@@ -583,7 +586,11 @@ export default function Home() {
                 onChange={(e) => handleInputChange("name", e.target.value)}
                 onBlur={handleNameBlur}
                 required
+                className={hasFieldError("name") ? "error" : ""}
               />
+              {hasFieldError("name") && (
+                <span className="field-error">{getFieldError("name")}</span>
+              )}
             </div>
 
             <div className="form-group">
@@ -596,7 +603,11 @@ export default function Home() {
                 value={formData.title}
                 onChange={(e) => handleInputChange("title", e.target.value)}
                 required
+                className={hasFieldError("title") ? "error" : ""}
               />
+              {hasFieldError("title") && (
+                <span className="field-error">{getFieldError("title")}</span>
+              )}
             </div>
 
             <div className="form-group">
@@ -609,7 +620,11 @@ export default function Home() {
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
                 required
+                className={hasFieldError("email") ? "error" : ""}
               />
+              {hasFieldError("email") && (
+                <span className="field-error">{getFieldError("email")}</span>
+              )}
             </div>
 
             <div className="form-group">
@@ -622,13 +637,17 @@ export default function Home() {
                 value={formData.phone}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
                 required
+                className={hasFieldError("phone") ? "error" : ""}
               />
+              {hasFieldError("phone") && (
+                <span className="field-error">{getFieldError("phone")}</span>
+              )}
             </div>
 
             <div className="form-group">
               <label>Profile Photo</label>
               <div
-                className={`photo-upload-area ${dragOver ? "drag-over" : ""}`}
+                className={`photo-upload-area ${dragOver ? "drag-over" : ""} ${hasFieldError("photo") ? "error" : ""}`}
                 onClick={handlePhotoAreaClick}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -707,6 +726,9 @@ export default function Home() {
                   </div>
                 )}
               </div>
+              {hasFieldError("photo") && (
+                <span className="field-error">{getFieldError("photo")}</span>
+              )}
               <span className="hint">Leave empty for default placeholder</span>
             </div>
           </form>
@@ -738,9 +760,9 @@ export default function Home() {
                 type="button"
                 className="btn-primary btn-save-cta"
                 onClick={saveCurrentSignature}
-                disabled={!isSignatureComplete() || isSavingSignature}
-                title={getDisabledTooltip()}
-                aria-label={getDisabledTooltip()}
+                disabled={isSavingSignature}
+                title={isSavingSignature ? "Saving..." : "Save your signature"}
+                aria-label={isSavingSignature ? "Saving..." : "Save your signature"}
               >
                 {isSavingSignature ? (
                   <>
@@ -781,11 +803,6 @@ export default function Home() {
                   </>
                 )}
               </button>
-              {!isSignatureComplete() && (
-                <div className="save-button-hint">
-                  Missing: {getMissingFields().join(", ")}
-                </div>
-              )}
             </div>
           </div>
         </section>
