@@ -82,7 +82,9 @@ export default function Home() {
   const [savedSignatures, setSavedSignatures] = useState<SavedSignature[]>([]);
   const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
-  const [deletingSignatureIds, setDeletingSignatureIds] = useState<Set<string>>(new Set());
+  const [deletingSignatureIds, setDeletingSignatureIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [currentSavedSignature, setCurrentSavedSignature] =
     useState<SavedSignature | null>(null);
   const [originalImageInfo, setOriginalImageInfo] = useState<{
@@ -91,6 +93,7 @@ export default function Home() {
     height: number;
   } | null>(null);
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
+  const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
 
   const cropperRef = useRef<Cropper | null>(null);
   const cropImageRef = useRef<HTMLImageElement>(null);
@@ -234,12 +237,16 @@ export default function Home() {
     return missing;
   };
 
-  const getFieldError = (field: keyof SignatureData | "photo"): string | null => {
+  const getFieldError = (
+    field: keyof SignatureData | "photo",
+  ): string | null => {
     if (!hasAttemptedSave) return null;
     if (field === "photo") {
       return !formData.photoUrl ? "Photo is required" : null;
     }
-    return !formData[field] ? `${field.charAt(0).toUpperCase() + field.slice(1)} is required` : null;
+    return !formData[field]
+      ? `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
+      : null;
   };
 
   const hasFieldError = (field: keyof SignatureData | "photo"): boolean => {
@@ -248,7 +255,7 @@ export default function Home() {
 
   const saveCurrentSignature = async () => {
     setHasAttemptedSave(true);
-    
+
     if (!isSignatureComplete()) {
       showToast(
         "Please fill in all fields (name, title, email, phone) and upload a photo",
@@ -323,13 +330,13 @@ export default function Home() {
         tempDiv.style.top = "-9999px";
         tempDiv.innerHTML = html;
         document.body.appendChild(tempDiv);
-        
+
         const range = document.createRange();
         range.selectNodeContents(tempDiv);
         const selection = window.getSelection();
         selection?.removeAllRanges();
         selection?.addRange(range);
-        
+
         try {
           document.execCommand("copy");
           showToast("Signature copied to clipboard!");
@@ -338,7 +345,7 @@ export default function Home() {
           await navigator.clipboard.writeText(html);
           showToast("Signature copied to clipboard!");
         }
-        
+
         selection?.removeAllRanges();
         document.body.removeChild(tempDiv);
       }
@@ -350,20 +357,20 @@ export default function Home() {
       tempDiv.style.top = "-9999px";
       tempDiv.innerHTML = html;
       document.body.appendChild(tempDiv);
-      
+
       const range = document.createRange();
       range.selectNodeContents(tempDiv);
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-      
+
       try {
         document.execCommand("copy");
         showToast("Signature copied to clipboard!");
       } catch (fallbackErr) {
         showToast("Failed to copy signature. Please try again.");
       }
-      
+
       selection?.removeAllRanges();
       document.body.removeChild(tempDiv);
     }
@@ -571,6 +578,91 @@ export default function Home() {
         </p>
       </header>
 
+      {/* Instructions Section */}
+      <section className="instructions-section">
+        <button
+          type="button"
+          className="instructions-toggle"
+          onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
+          aria-expanded={isInstructionsOpen}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={isInstructionsOpen ? "rotated" : ""}
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+          <span>How to generate and use your email signature</span>
+        </button>
+        {isInstructionsOpen && (
+          <div className="instructions-content">
+            <div className="instructions-step">
+              <h3>Step 1: Generate Your Signature</h3>
+              <ol>
+                <li>
+                  Fill in all the required fields: Name, Job Title, Email,
+                  Phone, and upload a Profile Photo
+                </li>
+                <li>
+                  Review your signature in the preview section. Make sure your
+                  image is cropped similarly to the saved signatures.
+                </li>
+                <li>Click "Save Signature" to save it</li>
+                <li>
+                  Click "Copy" on your saved signature to copy it to your
+                  clipboard
+                </li>
+              </ol>
+            </div>
+            <div className="instructions-step">
+              <h3>Step 2: Add Signature to Gmail</h3>
+              <ol>
+                <li>Open Gmail</li>
+                <li>
+                  Click <strong>Settings</strong> (gear icon) at the top right,
+                  then select <strong>See all settings</strong>
+                </li>
+                <li>
+                  Scroll down to the <strong>"Signature"</strong> section
+                </li>
+                <li>Paste your copied signature into the signature text box</li>
+                <li>Make it your default</li>
+                <li>
+                  In the <strong>"Signature defaults"</strong> section, select
+                  your signature from the <strong>"For new emails use"</strong>{" "}
+                  dropdown
+                </li>
+                <li>
+                  In the <strong>"On reply/forward use"</strong> dropdown,
+                  select <strong>"No signature"</strong>
+                </li>
+                <li>
+                  At the bottom of the page, click <strong>Save Changes</strong>
+                </li>
+              </ol>
+              <p className="instructions-link">
+                For detailed instructions, visit{" "}
+                <a
+                  href="https://support.google.com/mail/answer/8395?hl=en&co=GENIE.Platform%3DDesktop"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Gmail Help: Create a Gmail signature
+                </a>
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
       <main className="container">
         <section className="form-section">
           <h2>Details</h2>
@@ -762,7 +854,9 @@ export default function Home() {
                 onClick={saveCurrentSignature}
                 disabled={isSavingSignature}
                 title={isSavingSignature ? "Saving..." : "Save your signature"}
-                aria-label={isSavingSignature ? "Saving..." : "Save your signature"}
+                aria-label={
+                  isSavingSignature ? "Saving..." : "Save your signature"
+                }
               >
                 {isSavingSignature ? (
                   <>
