@@ -9,17 +9,26 @@
 
 ### Setup
 
-1. Install dependencies:
+
+1. Create .env.local. Make a copy of the file `.env.local.example` and store it in `.env.local`
+
+	```bash
+	cp .env.local.example .env.local
+	```
+
+	Populate the `.env.local` file with values.
+
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start the development server:
+3. Start the development server:
    ```bash
    npm run dev
    ```
 
-3. Open your browser and navigate to `http://localhost:3000` (the app will open automatically)
+4. Open your browser and navigate to `http://localhost:3000` (the app will open automatically)
 
 ### Additional Commands
 
