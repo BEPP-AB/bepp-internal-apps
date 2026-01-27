@@ -305,19 +305,64 @@ export default function Home() {
   const handleCopySignature = async (signature: SavedSignature) => {
     const html = signature.html;
     try {
-      await navigator.clipboard.writeText(html);
-      showToast("Signature copied to clipboard!");
+      // Try modern Clipboard API with HTML format
+      if (navigator.clipboard && window.ClipboardItem) {
+        const blob = new Blob([html], { type: "text/html" });
+        const clipboardItem = new ClipboardItem({ "text/html": blob });
+        await navigator.clipboard.write([clipboardItem]);
+        showToast("Signature copied to clipboard!");
+      } else {
+        // Fallback: Create temporary div with HTML content and copy it
+        // This preserves HTML formatting when pasting into email clients
+        const tempDiv = document.createElement("div");
+        tempDiv.style.position = "fixed";
+        tempDiv.style.left = "-9999px";
+        tempDiv.style.top = "-9999px";
+        tempDiv.innerHTML = html;
+        document.body.appendChild(tempDiv);
+        
+        const range = document.createRange();
+        range.selectNodeContents(tempDiv);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        
+        try {
+          document.execCommand("copy");
+          showToast("Signature copied to clipboard!");
+        } catch (err) {
+          // Final fallback: copy as plain text
+          await navigator.clipboard.writeText(html);
+          showToast("Signature copied to clipboard!");
+        }
+        
+        selection?.removeAllRanges();
+        document.body.removeChild(tempDiv);
+      }
     } catch (err) {
-      // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = html;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      showToast("Signature copied to clipboard!");
+      // Fallback for older browsers or if Clipboard API fails
+      const tempDiv = document.createElement("div");
+      tempDiv.style.position = "fixed";
+      tempDiv.style.left = "-9999px";
+      tempDiv.style.top = "-9999px";
+      tempDiv.innerHTML = html;
+      document.body.appendChild(tempDiv);
+      
+      const range = document.createRange();
+      range.selectNodeContents(tempDiv);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      
+      try {
+        document.execCommand("copy");
+        showToast("Signature copied to clipboard!");
+      } catch (fallbackErr) {
+        showToast("Failed to copy signature. Please try again.");
+      }
+      
+      selection?.removeAllRanges();
+      document.body.removeChild(tempDiv);
     }
   };
 
