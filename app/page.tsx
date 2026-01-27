@@ -264,49 +264,47 @@ export default function Home() {
     }
 
     setIsSavingSignature(true);
-    
+
     // Generate the HTML signature at save time
     const html = generateSignatureHtml(formData);
-    
+
     // Optimistically add the signature to the list
     const optimisticSignature: SavedSignature = {
       id: `temp-${Date.now()}`,
       createdAt: Date.now(),
       html,
     };
-    
+
     // Store previous current signature for potential rollback
     const previousCurrentSignature = currentSavedSignature;
-    
+
     try {
       // Optimistically update UI
       setSavedSignatures((prev) => [optimisticSignature, ...prev]);
       setCurrentSavedSignature(optimisticSignature);
       setHasAttemptedSave(false);
-      
+
       // Perform the actual save
       const saved = await saveSignature(formData, html);
-      
+
       // Replace optimistic signature with real one
       setSavedSignatures((prev) =>
-        prev.map((sig) =>
-          sig.id === optimisticSignature.id ? saved : sig
-        )
+        prev.map((sig) => (sig.id === optimisticSignature.id ? saved : sig)),
       );
       setCurrentSavedSignature(saved);
-      
+
       showToast("Signature saved! You can now copy it.");
     } catch (error) {
       console.error("Error saving signature:", error);
-      
+
       // Rollback: remove the optimistic signature
       setSavedSignatures((prev) =>
-        prev.filter((sig) => sig.id !== optimisticSignature.id)
+        prev.filter((sig) => sig.id !== optimisticSignature.id),
       );
-      
+
       // Restore previous current signature
       setCurrentSavedSignature(previousCurrentSignature);
-      
+
       showToast(
         error instanceof Error ? error.message : "Failed to save signature",
       );
@@ -322,23 +320,23 @@ export default function Home() {
       // Find the signature to delete for potential rollback
       const signatureToDelete = savedSignatures.find((sig) => sig.id === id);
       const wasCurrentSignature = currentSavedSignature?.id === id;
-      
+
       // Optimistically remove from UI
       setSavedSignatures((prev) => prev.filter((sig) => sig.id !== id));
-      
+
       // Clear current saved signature if it's the one being deleted
       if (wasCurrentSignature) {
         setCurrentSavedSignature(null);
       }
-      
+
       setDeletingSignatureIds((prev) => new Set(prev).add(id));
-      
+
       try {
         await deleteSignature(id);
         showToast("Signature deleted");
       } catch (error) {
         console.error("Error deleting signature:", error);
-        
+
         // Rollback: restore the signature
         if (signatureToDelete) {
           setSavedSignatures((prev) => {
@@ -346,7 +344,7 @@ export default function Home() {
             // Since we don't have the original index, we'll add it back at the end
             // or try to maintain order by checking createdAt
             const insertIndex = prev.findIndex(
-              (sig) => sig.createdAt < signatureToDelete.createdAt
+              (sig) => sig.createdAt < signatureToDelete.createdAt,
             );
             const newSignatures = [...prev];
             if (insertIndex >= 0) {
@@ -356,13 +354,13 @@ export default function Home() {
             }
             return newSignatures;
           });
-          
+
           // Restore current saved signature if it was the deleted one
           if (wasCurrentSignature) {
             setCurrentSavedSignature(signatureToDelete);
           }
         }
-        
+
         showToast(
           error instanceof Error ? error.message : "Failed to delete signature",
         );
@@ -635,12 +633,14 @@ export default function Home() {
 
   return (
     <div className="app">
-      <header className="header">
-        <h1>Bepp Email Signature Generator</h1>
-        <p className="subtitle">
-          Fill in the details below to generate your Bepp email signature
-        </p>
-      </header>
+      {/* Hero Image */}
+      <section className="hero-section">
+        <img
+          src="https://s6aizkvzvnhvjqhd.public.blob.vercel-storage.com/generic-assets/hero-yUUUtwtLyl8ijGabvupe5GqmHy7Nns.jpg"
+          alt="Hero"
+          className="hero-image"
+        />
+      </section>
 
       {/* Instructions Section */}
       <section className="instructions-section">
