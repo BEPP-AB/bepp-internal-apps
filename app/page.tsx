@@ -264,20 +264,49 @@ export default function Home() {
     }
 
     setIsSavingSignature(true);
+    
+    // Generate the HTML signature at save time
+    const html = generateSignatureHtml(formData);
+    
+    // Optimistically add the signature to the list
+    const optimisticSignature: SavedSignature = {
+      id: `temp-${Date.now()}`,
+      createdAt: Date.now(),
+      html,
+    };
+    
+    // Store previous current signature for potential rollback
+    const previousCurrentSignature = currentSavedSignature;
+    
     try {
-      // Generate the HTML signature at save time
-      const html = generateSignatureHtml(formData);
-      const saved = await saveSignature(formData, html);
-      // Set as current saved signature so it can be copied
-      setCurrentSavedSignature(saved);
-      // Refresh the signatures list
-      const signatures = await fetchSavedSignatures();
-      setSavedSignatures(signatures);
-      // Clear validation state on successful save
+      // Optimistically update UI
+      setSavedSignatures((prev) => [optimisticSignature, ...prev]);
+      setCurrentSavedSignature(optimisticSignature);
       setHasAttemptedSave(false);
+      
+      // Perform the actual save
+      const saved = await saveSignature(formData, html);
+      
+      // Replace optimistic signature with real one
+      setSavedSignatures((prev) =>
+        prev.map((sig) =>
+          sig.id === optimisticSignature.id ? saved : sig
+        )
+      );
+      setCurrentSavedSignature(saved);
+      
       showToast("Signature saved! You can now copy it.");
     } catch (error) {
       console.error("Error saving signature:", error);
+      
+      // Rollback: remove the optimistic signature
+      setSavedSignatures((prev) =>
+        prev.filter((sig) => sig.id !== optimisticSignature.id)
+      );
+      
+      // Restore previous current signature
+      setCurrentSavedSignature(previousCurrentSignature);
+      
       showToast(
         error instanceof Error ? error.message : "Failed to save signature",
       );
@@ -290,15 +319,50 @@ export default function Home() {
 
   const handleDeleteSignature = async (id: string) => {
     if (confirm("Are you sure you want to delete this signature?")) {
+      // Find the signature to delete for potential rollback
+      const signatureToDelete = savedSignatures.find((sig) => sig.id === id);
+      const wasCurrentSignature = currentSavedSignature?.id === id;
+      
+      // Optimistically remove from UI
+      setSavedSignatures((prev) => prev.filter((sig) => sig.id !== id));
+      
+      // Clear current saved signature if it's the one being deleted
+      if (wasCurrentSignature) {
+        setCurrentSavedSignature(null);
+      }
+      
       setDeletingSignatureIds((prev) => new Set(prev).add(id));
+      
       try {
         await deleteSignature(id);
-        // Refresh the signatures list
-        const signatures = await fetchSavedSignatures();
-        setSavedSignatures(signatures);
         showToast("Signature deleted");
       } catch (error) {
         console.error("Error deleting signature:", error);
+        
+        // Rollback: restore the signature
+        if (signatureToDelete) {
+          setSavedSignatures((prev) => {
+            // Find the position where it should be restored
+            // Since we don't have the original index, we'll add it back at the end
+            // or try to maintain order by checking createdAt
+            const insertIndex = prev.findIndex(
+              (sig) => sig.createdAt < signatureToDelete.createdAt
+            );
+            const newSignatures = [...prev];
+            if (insertIndex >= 0) {
+              newSignatures.splice(insertIndex, 0, signatureToDelete);
+            } else {
+              newSignatures.push(signatureToDelete);
+            }
+            return newSignatures;
+          });
+          
+          // Restore current saved signature if it was the deleted one
+          if (wasCurrentSignature) {
+            setCurrentSavedSignature(signatureToDelete);
+          }
+        }
+        
         showToast(
           error instanceof Error ? error.message : "Failed to delete signature",
         );

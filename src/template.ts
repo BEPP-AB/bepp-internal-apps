@@ -6,37 +6,18 @@ export interface SignatureData {
   photoUrl: string;
 }
 
-const DEFAULT_PHOTO_URL =
-  "https://www.logoai.com/ubrand/oss/signatures/00RJFvhYyV.jpeg";
-
 // Generate SVG avatar placeholder
-const generateAvatarPlaceholder = (name: string): string => {
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  const colors = ["#273d53", "#3a5a7c", "#4a6b8a"];
-  const colorIndex = name.length % colors.length;
-  const bgColor = colors[colorIndex];
-
+const generateAvatarPlaceholder = () => {
   return `data:image/svg+xml,${encodeURIComponent(
     `<svg width="140" height="140" xmlns="http://www.w3.org/2000/svg">
-      <rect width="140" height="140" fill="${bgColor}" rx="70"/>
-      <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">${initials}</text>
+      <rect width="140" height="140" fill="#273d53" rx="70"/>
     </svg>`,
   )}`;
 };
 
 export function generateSignatureHtml(data: SignatureData): string {
   // Use placeholder if no photo URL, otherwise use provided URL or default
-  const photoUrl = data.photoUrl
-    ? data.photoUrl
-    : data.name
-      ? generateAvatarPlaceholder(data.name)
-      : DEFAULT_PHOTO_URL;
+  const photoUrl = data.photoUrl ? data.photoUrl : generateAvatarPlaceholder();
 
   return `<table
   border="0"
@@ -195,7 +176,7 @@ export function generateSignatureHtml(data: SignatureData): string {
                       style="text-decoration: none"
                     >
                       <img
-                        src="https://s6aizkvzvnhvjqhd.public.blob.vercel-storage.com/bepp-logo-navy-3AKq9gei9PBOiNArkTnMZL1ZRa7Qfe.png"
+                        src="https://s6aizkvzvnhvjqhd.public.blob.vercel-storage.com/generic-assets/bepp-logo-navy-IeKJDzPiY53BAmbLIhkBaVT7dgjBS0.png"
                         style="
                           display: block;
                           outline: 0;
