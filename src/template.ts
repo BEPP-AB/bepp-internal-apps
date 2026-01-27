@@ -104,6 +104,19 @@ export function generateSignatureHtml(data: SignatureData): string {
                               margin: 0;
                             "
                           >
+                            <img
+                              src="https://s6aizkvzvnhvjqhd.public.blob.vercel-storage.com/generic-assets/mail-LEQC3sgDz1WuD6qeetssUdL913Yk64.png"
+                              style="
+                                display: inline-block;
+                                width: 14px;
+                                height: 14px;
+                                vertical-align: middle;
+                                outline: 0;
+                                border: none;
+                                text-decoration: none;
+                                margin-right: 6px;
+                              "
+                            />
                             <a
                               href="mailto:${data.email}"
                               style="color: #333; text-decoration: none"
@@ -131,6 +144,19 @@ export function generateSignatureHtml(data: SignatureData): string {
                               margin: 0;
                             "
                           >
+                            <img
+                              src="https://s6aizkvzvnhvjqhd.public.blob.vercel-storage.com/generic-assets/phone-5qh1kBW7ycXJZDSsOpLiuOVlekAWV7.png"
+                              style="
+                                display: inline-block;
+                                width: 14px;
+                                height: 14px;
+                                vertical-align: middle;
+                                outline: 0;
+                                border: none;
+                                text-decoration: none;
+                                margin-right: 6px;
+                              "
+                            />
                             <a
                               href="tel:${data.phone}"
                               style="color: #333; text-decoration: none"
@@ -158,6 +184,19 @@ export function generateSignatureHtml(data: SignatureData): string {
                               margin: 0;
                             "
                           >
+                            <img
+                              src="https://s6aizkvzvnhvjqhd.public.blob.vercel-storage.com/generic-assets/globe-DFMqTZByZWDKqkDsGQjP84ikh83j2d.png"
+                              style="
+                                display: inline-block;
+                                width: 14px;
+                                height: 14px;
+                                vertical-align: middle;
+                                outline: 0;
+                                border: none;
+                                text-decoration: none;
+                                margin-right: 6px;
+                              "
+                            />
                             <a
                               href="https://www.bepp.se"
                               style="color: #333; text-decoration: none"
