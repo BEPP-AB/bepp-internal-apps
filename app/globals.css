@@ -26,14 +26,20 @@
 }
 
 body {
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    "DM Sans",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   background: var(--bg-page);
   color: var(--text-primary);
   min-height: 100vh;
   line-height: 1.6;
 }
 
-#app {
+.app {
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 24px;
@@ -168,9 +174,15 @@ body {
   border-radius: 50%;
 }
 
-.dot.red { background: #ff5f57; }
-.dot.yellow { background: #febc2e; }
-.dot.green { background: #28c840; }
+.dot.red {
+  background: #ff5f57;
+}
+.dot.yellow {
+  background: #febc2e;
+}
+.dot.green {
+  background: #28c840;
+}
 
 .email-mock-body {
   background: #fff;
@@ -188,8 +200,20 @@ body {
   margin-bottom: 16px;
 }
 
-#signature-preview {
+.signature-preview {
   transform-origin: top left;
+}
+
+.signature-preview:empty::before {
+  content: "Fill in the form to see your signature preview";
+  display: block;
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  border: 2px dashed var(--border-color);
 }
 
 /* Actions Footer */
@@ -259,19 +283,6 @@ body {
   opacity: 0;
   transform: translateX(-50%) translateY(20px);
   pointer-events: none;
-}
-
-/* Empty state for preview */
-#signature-preview:empty::before {
-  content: "Fill in the form to see your signature preview";
-  display: block;
-  padding: 40px;
-  text-align: center;
-  color: var(--text-muted);
-  font-style: italic;
-  background: var(--bg-input);
-  border-radius: var(--radius-sm);
-  border: 2px dashed var(--border-color);
 }
 
 /* Photo Upload Area */
@@ -369,7 +380,7 @@ body {
   backdrop-filter: blur(4px);
 }
 
-.modal-overlay[hidden] {
+.modal-overlay.hidden {
   display: none;
 }
 
