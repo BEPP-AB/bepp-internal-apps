@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Fetch and parse each signature JSON file
-    const signatures: SavedSignature[] = await Promise.all(
+    const signatures: (SavedSignature | null)[] = await Promise.all(
       blobs.map(async (blob) => {
         try {
           const response = await fetch(blob.url);
