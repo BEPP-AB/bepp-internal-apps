@@ -1,4 +1,17 @@
-<table
+export interface SignatureData {
+  name: string;
+  title: string;
+  email: string;
+  phone: string;
+  photoUrl: string;
+}
+
+const DEFAULT_PHOTO_URL = "https://www.logoai.com/ubrand/oss/signatures/00RJFvhYyV.jpeg";
+
+export function generateSignatureHtml(data: SignatureData): string {
+  const photoUrl = data.photoUrl || DEFAULT_PHOTO_URL;
+  
+  return `<table
   border="0"
   cellpadding="0"
   cellspacing="0"
@@ -37,7 +50,7 @@
                   "
                 >
                   <img
-                    src="https://www.logoai.com/ubrand/oss/signatures/CaOwHjsVfB.jpeg"
+                    src="${photoUrl}"
                     style="
                       display: block;
                       outline: 0;
@@ -60,10 +73,10 @@
                       color: #273d53;
                     "
                   >
-                    Linus Olsson
+                    ${data.name}
                   </h3>
                   <p style="font-size: 0.8em; line-height: 1.5; margin: 0">
-                    Account Executive
+                    ${data.title}
                   </p>
                   <div style="margin-top: 8px"></div>
                   <table
@@ -84,9 +97,9 @@
                             "
                           >
                             <a
-                              href="mailto:linus.olsson@bepp.se"
+                              href="mailto:${data.email}"
                               style="color: #333; text-decoration: none"
-                              >linus.olsson@bepp.se</a
+                              >${data.email}</a
                             >
                           </p>
                         </td>
@@ -111,9 +124,9 @@
                             "
                           >
                             <a
-                              href="tel:079 103 47 87"
+                              href="tel:${data.phone}"
                               style="color: #333; text-decoration: none"
-                              >079 103 47 87</a
+                              >${data.phone}</a
                             >
                           </p>
                         </td>
@@ -175,4 +188,5 @@
       </td>
     </tr>
   </tbody>
-</table>
+</table>`;
+}
