@@ -6,11 +6,12 @@ export interface SignatureData {
   photoUrl: string;
 }
 
-const DEFAULT_PHOTO_URL = "https://www.logoai.com/ubrand/oss/signatures/00RJFvhYyV.jpeg";
+const DEFAULT_PHOTO_URL =
+  "https://www.logoai.com/ubrand/oss/signatures/00RJFvhYyV.jpeg";
 
 export function generateSignatureHtml(data: SignatureData): string {
   const photoUrl = data.photoUrl || DEFAULT_PHOTO_URL;
-  
+
   return `<table
   border="0"
   cellpadding="0"
@@ -49,19 +50,19 @@ export function generateSignatureHtml(data: SignatureData): string {
                     border-right: 2px solid #273d53;
                   "
                 >
-                  <img
-                    src="${photoUrl}"
-                    style="
-                      display: block;
-                      outline: 0;
-                      border: none;
-                      text-decoration: none;
-                      object-fit: contain;
-                      height: 140px;
-                      width: 140px;
-                      border-radius: 50%;
-                    "
-                  />
+                    <img
+                      src="${photoUrl}"
+                      style="
+                        display: block;
+                        outline: 0;
+                        border: none;
+                        text-decoration: none;
+                        object-fit: contain;
+                        height: 140px;
+                        width: 140px;
+                        border-radius: 50%;
+                      "
+                    />
                 </td>
                 <td style="padding-left: 15px">
                   <h3

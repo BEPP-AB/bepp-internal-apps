@@ -5,6 +5,61 @@ import Cropper from "cropperjs";
 import "cropperjs/dist/cropper.css";
 import { generateSignatureHtml, SignatureData } from "@/src/template";
 
+interface SavedSignature extends SignatureData {
+  id: string;
+  createdAt: number;
+  name: string; // Ensure name is always present for display
+  html: string; // Stored HTML signature (frozen at save time)
+}
+
+// API utilities
+const fetchSavedSignatures = async (): Promise<SavedSignature[]> => {
+  try {
+    const response = await fetch("/api/signatures");
+    if (!response.ok) {
+      throw new Error("Failed to fetch signatures");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching signatures:", error);
+    return [];
+  }
+};
+
+const saveSignature = async (
+  signature: SignatureData,
+  html: string,
+): Promise<SavedSignature> => {
+  const response = await fetch("/api/signatures", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ...signature,
+      html, // Include the generated HTML
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to save signature");
+  }
+
+  return await response.json();
+};
+
+const deleteSignature = async (id: string): Promise<void> => {
+  const response = await fetch(`/api/signatures/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to delete signature");
+  }
+};
+
 export default function Home() {
   const [formData, setFormData] = useState<SignatureData>({
     name: "",
@@ -20,10 +75,29 @@ export default function Home() {
   const [cropImageSrc, setCropImageSrc] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [savedSignatures, setSavedSignatures] = useState<SavedSignature[]>([]);
+  const [showSavedSection, setShowSavedSection] = useState(false);
+  const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
 
   const cropperRef = useRef<Cropper | null>(null);
   const cropImageRef = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load saved signatures on mount
+  useEffect(() => {
+    const loadSignatures = async () => {
+      setIsLoadingSignatures(true);
+      try {
+        const signatures = await fetchSavedSignatures();
+        setSavedSignatures(signatures);
+      } catch (error) {
+        console.error("Error loading signatures:", error);
+      } finally {
+        setIsLoadingSignatures(false);
+      }
+    };
+    loadSignatures();
+  }, []);
 
   // Update preview when form data changes
   useEffect(() => {
@@ -139,6 +213,60 @@ export default function Home() {
       document.execCommand("copy");
       document.body.removeChild(textarea);
       showToast("Copied to clipboard!");
+    }
+  };
+
+  const saveCurrentSignature = async () => {
+    if (!formData.name) {
+      showToast("Please fill in at least a name");
+      return;
+    }
+
+    try {
+      // Generate the HTML signature at save time
+      const html = generateSignatureHtml(formData);
+      await saveSignature(formData, html);
+      // Refresh the signatures list
+      const signatures = await fetchSavedSignatures();
+      setSavedSignatures(signatures);
+      showToast("Signature saved!");
+      setShowSavedSection(true);
+    } catch (error) {
+      console.error("Error saving signature:", error);
+      showToast(
+        error instanceof Error ? error.message : "Failed to save signature",
+      );
+    }
+  };
+
+  const loadSignature = (signature: SavedSignature) => {
+    setFormData({
+      name: signature.name,
+      title: signature.title,
+      email: signature.email,
+      phone: signature.phone,
+      photoUrl: signature.photoUrl,
+    });
+    showToast("Signature loaded!");
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDeleteSignature = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("Are you sure you want to delete this signature?")) {
+      try {
+        await deleteSignature(id);
+        // Refresh the signatures list
+        const signatures = await fetchSavedSignatures();
+        setSavedSignatures(signatures);
+        showToast("Signature deleted");
+      } catch (error) {
+        console.error("Error deleting signature:", error);
+        showToast(
+          error instanceof Error ? error.message : "Failed to delete signature",
+        );
+      }
     }
   };
 
@@ -440,7 +568,105 @@ export default function Home() {
         </section>
       </main>
 
+      {/* Saved Signatures Section */}
+      {savedSignatures.length > 0 && (
+        <section className="saved-section">
+          <div className="saved-header">
+            <h2>Saved Signatures</h2>
+            <button
+              type="button"
+              className="toggle-saved-btn"
+              onClick={() => setShowSavedSection(!showSavedSection)}
+            >
+              {showSavedSection ? "Hide" : "Show"} ({savedSignatures.length})
+            </button>
+          </div>
+          {showSavedSection && (
+            <div className="saved-list">
+              {isLoadingSignatures ? (
+                <div className="saved-loading">Loading signatures...</div>
+              ) : savedSignatures.length === 0 ? (
+                <div className="saved-empty">
+                  No saved signatures yet. Create one and click "Save Signature"
+                  to get started!
+                </div>
+              ) : (
+                savedSignatures.map((signature) => (
+                  <div
+                    key={signature.id}
+                    className="saved-item"
+                    onClick={() => loadSignature(signature)}
+                  >
+                    <div className="saved-item-preview">
+                      <div
+                        dangerouslySetInnerHTML={{
+                          // Use stored HTML if available, otherwise fallback to regenerating (for backward compatibility)
+                          __html:
+                            signature.html || generateSignatureHtml(signature),
+                        }}
+                      />
+                    </div>
+                    <div className="saved-item-info">
+                      <div className="saved-item-name">{signature.name}</div>
+                      <div className="saved-item-meta">
+                        {signature.title && <span>{signature.title}</span>}
+                        <span className="saved-item-date">
+                          {new Date(signature.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="saved-item-delete"
+                      onClick={(e) => handleDeleteSignature(signature.id, e)}
+                      title="Delete signature"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       <footer className="actions">
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={saveCurrentSignature}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+          Save Signature
+        </button>
         <button type="button" className="btn-primary" onClick={copyToClipboard}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
