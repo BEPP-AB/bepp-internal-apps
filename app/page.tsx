@@ -11,12 +11,6 @@ interface SavedSignature {
   html: string; // Stored HTML signature (frozen at save time)
 }
 
-// Helper function to extract name from HTML signature
-const extractNameFromHtml = (html: string): string => {
-  const match = html.match(/<h3[^>]*>([^<]+)<\/h3>/);
-  return match ? match[1].trim() : "Signature";
-};
-
 // API utilities
 const fetchSavedSignatures = async (): Promise<SavedSignature[]> => {
   try {
@@ -33,7 +27,7 @@ const fetchSavedSignatures = async (): Promise<SavedSignature[]> => {
 
 const saveSignature = async (
   signature: SignatureData,
-  html: string,
+  html: string
 ): Promise<SavedSignature> => {
   const response = await fetch("/api/signatures", {
     method: "POST",
@@ -83,7 +77,7 @@ export default function Home() {
   const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [deletingSignatureIds, setDeletingSignatureIds] = useState<Set<string>>(
-    new Set(),
+    new Set()
   );
   const [currentSavedSignature, setCurrentSavedSignature] =
     useState<SavedSignature | null>(null);
@@ -238,7 +232,7 @@ export default function Home() {
   };
 
   const getFieldError = (
-    field: keyof SignatureData | "photo",
+    field: keyof SignatureData | "photo"
   ): string | null => {
     if (!hasAttemptedSave) return null;
     if (field === "photo") {
@@ -258,7 +252,7 @@ export default function Home() {
 
     if (!isSignatureComplete()) {
       showToast(
-        "Please fill in all fields (name, title, email, phone) and upload a photo",
+        "Please fill in all fields (name, title, email, phone) and upload a photo"
       );
       return;
     }
@@ -289,7 +283,7 @@ export default function Home() {
 
       // Replace optimistic signature with real one
       setSavedSignatures((prev) =>
-        prev.map((sig) => (sig.id === optimisticSignature.id ? saved : sig)),
+        prev.map((sig) => (sig.id === optimisticSignature.id ? saved : sig))
       );
       setCurrentSavedSignature(saved);
 
@@ -299,14 +293,14 @@ export default function Home() {
 
       // Rollback: remove the optimistic signature
       setSavedSignatures((prev) =>
-        prev.filter((sig) => sig.id !== optimisticSignature.id),
+        prev.filter((sig) => sig.id !== optimisticSignature.id)
       );
 
       // Restore previous current signature
       setCurrentSavedSignature(previousCurrentSignature);
 
       showToast(
-        error instanceof Error ? error.message : "Failed to save signature",
+        error instanceof Error ? error.message : "Failed to save signature"
       );
     } finally {
       setIsSavingSignature(false);
@@ -344,7 +338,7 @@ export default function Home() {
             // Since we don't have the original index, we'll add it back at the end
             // or try to maintain order by checking createdAt
             const insertIndex = prev.findIndex(
-              (sig) => sig.createdAt < signatureToDelete.createdAt,
+              (sig) => sig.createdAt < signatureToDelete.createdAt
             );
             const newSignatures = [...prev];
             if (insertIndex >= 0) {
@@ -362,7 +356,7 @@ export default function Home() {
         }
 
         showToast(
-          error instanceof Error ? error.message : "Failed to delete signature",
+          error instanceof Error ? error.message : "Failed to delete signature"
         );
       } finally {
         setDeletingSignatureIds((prev) => {
@@ -521,7 +515,7 @@ export default function Home() {
             else reject(new Error("Failed to create blob"));
           },
           "image/jpeg",
-          0.9,
+          0.9
         );
       });
 
@@ -566,10 +560,26 @@ export default function Home() {
         let feedbackMessage: string;
         if (result.optimized) {
           // Server-side optimization was applied
-          feedbackMessage = `Image optimized: ${originalImageInfo.width}×${originalImageInfo.height} → ${result.processedWidth}×${result.processedHeight}. Size reduced from ${formatFileSize(originalSize)} to ${formatFileSize(finalSize)} (${sizeReductionPercent}% smaller)`;
+          feedbackMessage = `Image optimized: ${originalImageInfo.width}×${
+            originalImageInfo.height
+          } → ${result.processedWidth}×${
+            result.processedHeight
+          }. Size reduced from ${formatFileSize(
+            originalSize
+          )} to ${formatFileSize(
+            finalSize
+          )} (${sizeReductionPercent}% smaller)`;
         } else {
           // Client-side processing was sufficient
-          feedbackMessage = `Image processed: ${originalImageInfo.width}×${originalImageInfo.height} → ${result.processedWidth}×${result.processedHeight}. Size reduced from ${formatFileSize(originalSize)} to ${formatFileSize(finalSize)} (${sizeReductionPercent}% smaller)`;
+          feedbackMessage = `Image processed: ${originalImageInfo.width}×${
+            originalImageInfo.height
+          } → ${result.processedWidth}×${
+            result.processedHeight
+          }. Size reduced from ${formatFileSize(
+            originalSize
+          )} to ${formatFileSize(
+            finalSize
+          )} (${sizeReductionPercent}% smaller)`;
         }
         showToast(feedbackMessage);
       } else {
@@ -580,7 +590,13 @@ export default function Home() {
           100
         ).toFixed(0);
         const action = result.optimized ? "optimized" : "processed";
-        const feedbackMessage = `Image ${action} to ${result.processedWidth}×${result.processedHeight}. Size reduced from ${formatFileSize(result.originalSize)} to ${formatFileSize(result.size)} (${sizeReductionPercent}% smaller)`;
+        const feedbackMessage = `Image ${action} to ${result.processedWidth}×${
+          result.processedHeight
+        }. Size reduced from ${formatFileSize(
+          result.originalSize
+        )} to ${formatFileSize(
+          result.size
+        )} (${sizeReductionPercent}% smaller)`;
         showToast(feedbackMessage);
       }
 
@@ -588,7 +604,7 @@ export default function Home() {
     } catch (error) {
       console.error("Upload error:", error);
       showToast(
-        error instanceof Error ? error.message : "Failed to upload photo",
+        error instanceof Error ? error.message : "Failed to upload photo"
       );
     } finally {
       setIsUploading(false);
@@ -803,7 +819,9 @@ export default function Home() {
             <div className="form-group">
               <label>Profile Photo</label>
               <div
-                className={`photo-upload-area ${dragOver ? "drag-over" : ""} ${hasFieldError("photo") ? "error" : ""}`}
+                className={`photo-upload-area ${dragOver ? "drag-over" : ""} ${
+                  hasFieldError("photo") ? "error" : ""
+                }`}
                 onClick={handlePhotoAreaClick}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
