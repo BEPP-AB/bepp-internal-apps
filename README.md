@@ -6,7 +6,7 @@ Monorepo for BEPP internal applications.
 
 | App | Description | Port |
 |-----|-------------|------|
-| [@bepp/email-signatures](./apps/web) | Email signature generator | 3000 |
+| [@bepp/email-signatures](./apps/email-signatures) | Email signature generator | 3000 |
 
 ## Getting Started
 
