@@ -1,4 +1,4 @@
-import { put, list, del } from "@vercel/blob";
+import { list } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 
 interface SavedSignature {
@@ -18,13 +18,12 @@ export async function POST(request: NextRequest) {
     if (!data.html) {
       return NextResponse.json(
         { error: "HTML signature is required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     // Generate unique ID
     const id = `sig-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const filename = `${SIGNATURES_PREFIX}${id}.json`;
 
     // Create signature object with only HTML and creation date
     const signature: SavedSignature = {
@@ -33,29 +32,18 @@ export async function POST(request: NextRequest) {
       html: data.html,
     };
 
-    // Convert to JSON blob
-    const jsonBlob = new Blob([JSON.stringify(signature)], {
-      type: "application/json",
-    });
-
-    // Upload to Vercel Blob
-    const blob = await put(filename, jsonBlob, {
-      access: "public",
-      addRandomSuffix: false,
-    });
-
     return NextResponse.json(signature);
   } catch (error) {
     console.error("Save signature error:", error);
     return NextResponse.json(
       { error: "Failed to save signature" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
 // GET - List all signatures
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // List all files with the signatures prefix
     const { blobs } = await list({
@@ -73,7 +61,7 @@ export async function GET(request: NextRequest) {
           console.error(`Error fetching signature ${blob.url}:`, error);
           return null;
         }
-      }),
+      })
     );
 
     // Filter out any failed fetches and sort by creation date (newest first)
@@ -86,7 +74,7 @@ export async function GET(request: NextRequest) {
     console.error("List signatures error:", error);
     return NextResponse.json(
       { error: "Failed to fetch signatures" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

@@ -221,16 +221,6 @@ export default function Home() {
     );
   };
 
-  const getMissingFields = (): string[] => {
-    const missing: string[] = [];
-    if (!formData.name) missing.push("name");
-    if (!formData.title) missing.push("title");
-    if (!formData.email) missing.push("email");
-    if (!formData.phone) missing.push("phone");
-    if (!formData.photoUrl) missing.push("photo");
-    return missing;
-  };
-
   const getFieldError = (
     field: keyof SignatureData | "photo"
   ): string | null => {
@@ -396,7 +386,7 @@ export default function Home() {
         try {
           document.execCommand("copy");
           showToast("Signature copied to clipboard!");
-        } catch (err) {
+        } catch {
           // Final fallback: copy as plain text
           await navigator.clipboard.writeText(html);
           showToast("Signature copied to clipboard!");
@@ -405,7 +395,7 @@ export default function Home() {
         selection?.removeAllRanges();
         document.body.removeChild(tempDiv);
       }
-    } catch (err) {
+    } catch {
       // Fallback for older browsers or if Clipboard API fails
       const tempDiv = document.createElement("div");
       tempDiv.style.position = "fixed";
@@ -423,7 +413,7 @@ export default function Home() {
       try {
         document.execCommand("copy");
         showToast("Signature copied to clipboard!");
-      } catch (fallbackErr) {
+      } catch {
         showToast("Failed to copy signature. Please try again.");
       }
 
@@ -476,10 +466,6 @@ export default function Home() {
       }
     };
     reader.readAsDataURL(file);
-  };
-
-  const openCropModal = () => {
-    fileInputRef.current?.click();
   };
 
   const closeCropModal = () => {
