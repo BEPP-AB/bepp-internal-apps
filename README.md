@@ -6,7 +6,8 @@ Monorepo for BEPP internal applications.
 
 | App | Description | Port |
 |-----|-------------|------|
-| [@bepp/email-signatures](./apps/email-signatures) | Email signature generator | 3000 |
+| [@bepp/entry-dashboard](./apps/entry-dashboard) | Dashboard entry point for all internal tools | 3000 |
+| [@bepp/email-signatures](./apps/email-signatures) | Email signature generator | 3001 |
 
 ## Getting Started
 
@@ -42,8 +43,9 @@ pnpm lint
 
 ```
 ├── apps/
-│   ├── web/          # @bepp/email-signatures - Next.js
-├── turbo.json        # Turborepo configuration
+│   ├── entry-dashboard/  # @bepp/entry-dashboard - Dashboard entry point for all tools
+│   ├── email-signatures/ # @bepp/email-signatures - Email signature generator
+├── turbo.json            # Turborepo configuration
 ├── pnpm-workspace.yaml
 └── package.json
 ```
