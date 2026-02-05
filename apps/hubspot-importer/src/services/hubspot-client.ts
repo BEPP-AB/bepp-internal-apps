@@ -1,4 +1,8 @@
 import { Client } from "@hubspot/api-client";
+import type {
+  PropertyCreateTypeEnum,
+  PropertyCreateFieldTypeEnum,
+} from "@hubspot/api-client/lib/codegen/crm/properties/models/PropertyCreate";
 import {
   HubspotProperty,
   ScrapedCompany,
@@ -632,8 +636,8 @@ export async function createCompanyProperty(property: {
     const response = await client.crm.properties.coreApi.create("company", {
       name: property.name,
       label: property.label,
-      type: property.type as unknown as string, // HubSpot SDK type mismatch
-      fieldType: property.fieldType as unknown as string, // HubSpot SDK type mismatch
+      type: property.type as PropertyCreateTypeEnum,
+      fieldType: property.fieldType as PropertyCreateFieldTypeEnum,
       groupName: property.groupName || "companyinformation",
       description: property.description,
     });
