@@ -638,7 +638,7 @@ export default function Home() {
       {/* Hero Image */}
       <section className="hero-section">
         <img
-          src="/images/email-signatures-hero.png"
+          src="/images/email-signatures-hero.webp"
           alt="Hero"
           className="hero-image"
         />

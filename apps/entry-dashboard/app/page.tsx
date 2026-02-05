@@ -18,13 +18,13 @@ const internalApps: InternalApp[] = [
     id: "email-signatures",
     name: "Email Signature Generator",
     url: BEPP_INTERNAL_APPS_EMAIL_SIGNATURES_URL,
-    imageUrl: `${BEPP_INTERNAL_APPS_EMAIL_SIGNATURES_URL}/images/email-signatures-hero.png`,
+    imageUrl: `${BEPP_INTERNAL_APPS_EMAIL_SIGNATURES_URL}/images/email-signatures-hero.webp`,
   },
   {
     id: "hubspot-importer",
     name: "Hubspot Company Importer",
     url: BEPP_INTERNAL_APPS_HUBSPOT_IMPORTER_URL,
-    imageUrl: `${BEPP_INTERNAL_APPS_HUBSPOT_IMPORTER_URL}/images/hubspot-importer-hero.png`,
+    imageUrl: `${BEPP_INTERNAL_APPS_HUBSPOT_IMPORTER_URL}/images/hubspot-importer-hero.webp`,
   },
   // Add more apps here
 ];

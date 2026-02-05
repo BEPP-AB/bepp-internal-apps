@@ -705,7 +705,7 @@ export default function HubspotImporterPage() {
       {/* Hero Image */}
       <section className="hero-section">
         <img
-          src="/images/hubspot-importer-hero.png"
+          src="/images/hubspot-importer-hero.webp"
           alt="Hero"
           className="hero-image"
         />
