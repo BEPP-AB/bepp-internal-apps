@@ -793,4 +793,20 @@ body {
   .action-bar-right .btn {
     width: 100%;
   }
+
+  .mode-selector-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  @media (max-width: 1024px) {
+    .mode-selector-grid {
+      grid-template-columns: 1fr 1fr !important;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .mode-selector-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
 }
