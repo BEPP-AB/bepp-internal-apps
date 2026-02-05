@@ -8,6 +8,7 @@ Monorepo for BEPP internal applications.
 |-----|-------------|------|
 | [@bepp/entry-dashboard](./apps/entry-dashboard) | Dashboard entry point for all internal tools | 3000 |
 | [@bepp/email-signatures](./apps/email-signatures) | Email signature generator | 3001 |
+| [@bepp/hubspot-importer](./apps/hubspot-importer) | Import company data from AllaBolag to Hubspot | 3002 |
 
 ## Getting Started
 
@@ -43,9 +44,10 @@ pnpm lint
 
 ```
 ├── apps/
-│   ├── entry-dashboard/  # @bepp/entry-dashboard - Dashboard entry point for all tools
-│   ├── email-signatures/ # @bepp/email-signatures - Email signature generator
-├── turbo.json            # Turborepo configuration
+│   ├── entry-dashboard/   # @bepp/entry-dashboard - Dashboard entry point for all tools
+│   ├── email-signatures/  # @bepp/email-signatures - Email signature generator
+│   ├── hubspot-importer/  # @bepp/hubspot-importer - AllaBolag to Hubspot importer
+├── turbo.json             # Turborepo configuration
 ├── pnpm-workspace.yaml
 └── package.json
 ```

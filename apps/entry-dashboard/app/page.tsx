@@ -8,7 +8,7 @@ interface InternalApp {
 }
 
 // Configure your internal apps here
-// In development: apps run on separate ports (hub: 3000, email-signatures: 3001)
+// In development: apps run on separate ports (hub: 3000, email-signatures: 3001, hubspot-importer: 3002)
 // In production: update these URLs to match your deployed paths or domains
 const internalApps: InternalApp[] = [
   {
@@ -17,6 +17,13 @@ const internalApps: InternalApp[] = [
     url:
       process.env.NEXT_PUBLIC_EMAIL_SIGNATURES_URL || "http://localhost:3001",
     imageUrl: "/images/email-signatures-hero.jpg",
+  },
+  {
+    id: "hubspot-importer",
+    name: "Hubspot Company Importer",
+    url:
+      process.env.NEXT_PUBLIC_HUBSPOT_IMPORTER_URL || "http://localhost:3002",
+    imageUrl: "/images/hubspot-importer-hero.jpg",
   },
   // Add more apps here
 ];
