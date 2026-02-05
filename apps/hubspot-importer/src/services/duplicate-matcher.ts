@@ -61,7 +61,10 @@ function normalizeCompanyName(name: string): string {
     name
       .toLowerCase()
       // Remove common Swedish company suffixes
-      .replace(/\s*(ab|aktiebolag|hb|handelsbolag|kb|kommanditbolag|ef|ek\s*för\.?|enskild\s*firma)\s*$/i, "")
+      .replace(
+        /\s*(ab|aktiebolag|hb|handelsbolag|kb|kommanditbolag|ef|ek\s*för\.?|enskild\s*firma)\s*$/i,
+        ""
+      )
       // Remove common business type indicators
       .replace(/\s*(inc\.?|ltd\.?|llc\.?|gmbh|co\.?|corp\.?)\s*$/i, "")
       // Normalize whitespace
@@ -78,8 +81,8 @@ function normalizeOrgNumber(orgNumber: string): string {
   return orgNumber.replace(/\D/g, "");
 }
 
-// Similarity threshold for name matching (85%)
-const NAME_SIMILARITY_THRESHOLD = 0.85;
+// Similarity threshold for name matching (50%)
+const NAME_SIMILARITY_THRESHOLD = 0.5;
 
 /**
  * Find potential duplicates by comparing scraped companies with Hubspot companies
@@ -125,7 +128,8 @@ export async function findDuplicates(
             id: hubspotMatch.id,
             name: hubspotMatch.properties.name || "Unknown",
             domain: hubspotMatch.properties.domain || undefined,
-            orgNumber: hubspotMatch.properties[orgNumberPropertyName] || undefined,
+            orgNumber:
+              hubspotMatch.properties[orgNumberPropertyName] || undefined,
           },
           matchType: "org_number",
         });
@@ -140,7 +144,9 @@ export async function findDuplicates(
     if (processedScrapedIndices.has(i)) continue;
 
     const scraped = scrapedCompanies[i];
-    const normalizedScrapedName = normalizeCompanyName(scraped.organizationName);
+    const normalizedScrapedName = normalizeCompanyName(
+      scraped.organizationName
+    );
 
     let bestMatch: HubspotCompany | null = null;
     let bestSimilarity = 0;
@@ -155,7 +161,10 @@ export async function findDuplicates(
         normalizedHubspotName
       );
 
-      if (similarity >= NAME_SIMILARITY_THRESHOLD && similarity > bestSimilarity) {
+      if (
+        similarity >= NAME_SIMILARITY_THRESHOLD &&
+        similarity > bestSimilarity
+      ) {
         bestMatch = hubspot;
         bestSimilarity = similarity;
       }
@@ -175,6 +184,27 @@ export async function findDuplicates(
       });
     }
   }
+
+  // Sort duplicates: org_number matches first (most reliable), then name_similarity by similarity descending
+  duplicates.sort((a, b) => {
+    // Org number matches come first
+    if (a.matchType === "org_number" && b.matchType === "name_similarity")
+      return -1;
+    if (a.matchType === "name_similarity" && b.matchType === "org_number")
+      return 1;
+
+    // Within name_similarity matches, sort by similarity descending (highest first)
+    if (
+      a.matchType === "name_similarity" &&
+      b.matchType === "name_similarity"
+    ) {
+      const aSim = a.similarity ?? 0;
+      const bSim = b.similarity ?? 0;
+      return bSim - aSim;
+    }
+
+    return 0;
+  });
 
   return duplicates;
 }
@@ -196,7 +226,9 @@ export function filterOutDuplicates(
 /**
  * Utility to get org number set from duplicate matches
  */
-export function getDuplicateOrgNumbers(duplicates: DuplicateMatch[]): Set<string> {
+export function getDuplicateOrgNumbers(
+  duplicates: DuplicateMatch[]
+): Set<string> {
   const orgNumbers = new Set<string>();
 
   for (const dup of duplicates) {

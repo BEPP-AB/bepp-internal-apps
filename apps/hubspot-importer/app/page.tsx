@@ -236,10 +236,17 @@ export default function HubspotImporterPage() {
 
       setDuplicates(data.duplicates);
 
-      // Pre-select all duplicates to skip by default
+      // Pre-select duplicates to skip by default:
+      // - All org_number matches (most reliable)
+      // - Name similarity matches with similarity > 0.85
       const confirmed = new Set<string>();
       data.duplicates.forEach((d) => {
-        confirmed.add(d.scrapedCompany.orgNumber.replace(/-/g, ""));
+        const shouldCheck =
+          d.matchType === "org_number" ||
+          (d.matchType === "name_similarity" && (d.similarity ?? 0) > 0.85);
+        if (shouldCheck) {
+          confirmed.add(d.scrapedCompany.orgNumber.replace(/-/g, ""));
+        }
       });
       setConfirmedDuplicates(confirmed);
     } catch (err) {
@@ -758,7 +765,7 @@ export default function HubspotImporterPage() {
                 </div>
               </div>
 
-              {duplicates.length > 0 ? (
+              {scrapeStatus?.companies.length ? (
                 <>
                   <p
                     style={{
@@ -766,7 +773,7 @@ export default function HubspotImporterPage() {
                       marginBottom: "16px",
                     }}
                   >
-                    Uncheck to include in import.
+                    Click on a row to exclude/include it from import.
                   </p>
 
                   <div
@@ -774,79 +781,192 @@ export default function HubspotImporterPage() {
                     style={{ maxHeight: "400px", marginTop: "16px" }}
                   >
                     <table className="company-table">
-                      <thead>
+                      <thead style={{ background: "#f8f9fb", opacity: 1 }}>
                         <tr>
-                          <th style={{ width: "50px" }}>Skip</th>
-                          <th>Scraped Company</th>
-                          <th>Match Type</th>
-                          <th>Existing in Hubspot</th>
+                          <th
+                            style={{
+                              background: "#f8f9fb",
+                              opacity: 1,
+                              zIndex: 10,
+                            }}
+                          >
+                            Scraped Company
+                          </th>
+                          <th
+                            style={{
+                              background: "#f8f9fb",
+                              opacity: 1,
+                              zIndex: 10,
+                            }}
+                          >
+                            Match Type
+                          </th>
+                          <th
+                            style={{
+                              background: "#f8f9fb",
+                              opacity: 1,
+                              zIndex: 10,
+                            }}
+                          >
+                            Existing in Hubspot
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {duplicates.map((dup, idx) => (
-                          <tr key={idx}>
-                            <td>
-                              <input
-                                type="checkbox"
-                                checked={confirmedDuplicates.has(
-                                  dup.scrapedCompany.orgNumber.replace(/-/g, "")
-                                )}
-                                onChange={() =>
-                                  toggleDuplicate(dup.scrapedCompany.orgNumber)
+                        {(() => {
+                          // Create a map of duplicates by orgNumber for quick lookup
+                          const duplicateMap = new Map<
+                            string,
+                            DuplicateMatch
+                          >();
+                          duplicates.forEach((dup) => {
+                            const normalizedOrgNum =
+                              dup.scrapedCompany.orgNumber.replace(/-/g, "");
+                            duplicateMap.set(normalizedOrgNum, dup);
+                          });
+
+                          // Combine all companies with their duplicate info
+                          const companiesWithDuplicates =
+                            scrapeStatus.companies.map((company) => {
+                              const normalizedOrgNum =
+                                company.orgNumber.replace(/-/g, "");
+                              const duplicate =
+                                duplicateMap.get(normalizedOrgNum);
+                              return {
+                                company,
+                                duplicate,
+                              };
+                            });
+
+                          // Sort: duplicates first (by match type and similarity), then non-duplicates
+                          companiesWithDuplicates.sort((a, b) => {
+                            const aHasDup = !!a.duplicate;
+                            const bHasDup = !!b.duplicate;
+
+                            // If both are duplicates or both are not duplicates, maintain order
+                            if (aHasDup === bHasDup) {
+                              if (aHasDup && bHasDup) {
+                                // Both are duplicates - sort by match type and similarity
+                                const aType =
+                                  a.duplicate!.matchType === "org_number"
+                                    ? 0
+                                    : 1;
+                                const bType =
+                                  b.duplicate!.matchType === "org_number"
+                                    ? 0
+                                    : 1;
+                                if (aType !== bType) return aType - bType;
+
+                                // Same type - sort by similarity descending
+                                const aSim = a.duplicate!.similarity ?? 0;
+                                const bSim = b.duplicate!.similarity ?? 0;
+                                return bSim - aSim;
+                              }
+                              return 0;
+                            }
+
+                            // Duplicates come first
+                            return aHasDup ? -1 : 1;
+                          });
+
+                          return companiesWithDuplicates.map((item, idx) => {
+                            const isExcluded = confirmedDuplicates.has(
+                              item.company.orgNumber.replace(/-/g, "")
+                            );
+                            return (
+                              <tr
+                                key={idx}
+                                onClick={() =>
+                                  toggleDuplicate(item.company.orgNumber)
                                 }
-                              />
-                            </td>
-                            <td>
-                              <strong>
-                                {dup.scrapedCompany.organizationName}
-                              </strong>
-                              <br />
-                              <span className="org-number">
-                                {dup.scrapedCompany.orgNumber}
-                              </span>
-                            </td>
-                            <td>
-                              <span
-                                className={`badge ${
-                                  dup.matchType === "org_number"
-                                    ? "badge-success"
-                                    : "badge-warning"
-                                }`}
-                              >
-                                {dup.matchType === "org_number"
-                                  ? "Org Number"
-                                  : `Name (${Math.round(
-                                      (dup.similarity || 0) * 100
-                                    )}%)`}
-                              </span>
-                            </td>
-                            <td>
-                              <a
-                                href={`https://app-eu1.hubspot.com/contacts/144470660/record/0-2/${dup.hubspotCompany.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
                                 style={{
-                                  color: "var(--primary)",
-                                  textDecoration: "underline",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "4px",
+                                  cursor: "pointer",
+                                  opacity: isExcluded ? 0.5 : 1,
+                                  textDecoration: isExcluded
+                                    ? "line-through"
+                                    : "none",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor =
+                                    "var(--bg-secondary)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor =
+                                    "transparent";
                                 }}
                               >
-                                {dup.hubspotCompany.name}
-                                <span style={{ fontSize: "12px" }}>↗</span>
-                              </a>
-                            </td>
-                          </tr>
-                        ))}
+                                <td>
+                                  <strong>
+                                    {item.company.organizationName}
+                                  </strong>
+                                  {isExcluded && (
+                                    <span
+                                      style={{
+                                        marginLeft: "8px",
+                                        color: "var(--text-secondary)",
+                                        fontSize: "12px",
+                                      }}
+                                    >
+                                      (excluded)
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  {item.duplicate ? (
+                                    <span
+                                      className={`badge ${
+                                        item.duplicate.matchType ===
+                                        "org_number"
+                                          ? "badge-success"
+                                          : "badge-warning"
+                                      }`}
+                                    >
+                                      {item.duplicate.matchType === "org_number"
+                                        ? "Org Number"
+                                        : `Name (${Math.round(
+                                            (item.duplicate.similarity || 0) *
+                                              100
+                                          )}%)`}
+                                    </span>
+                                  ) : (
+                                    <span className="badge badge-success">
+                                      No match found
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  {item.duplicate ? (
+                                    <a
+                                      href={`https://app-eu1.hubspot.com/contacts/144470660/record/0-2/${item.duplicate.hubspotCompany.id}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{
+                                        color: "var(--primary)",
+                                        textDecoration: "underline",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                      }}
+                                    >
+                                      {item.duplicate.hubspotCompany.name}
+                                      <span style={{ fontSize: "12px" }}>
+                                        ↗
+                                      </span>
+                                    </a>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
                       </tbody>
                     </table>
                   </div>
                 </>
               ) : (
                 <p style={{ color: "var(--text-secondary)" }}>
-                  No duplicates found. All {scrapeStatus?.companies.length}{" "}
-                  companies will be imported.
+                  No companies found.
                 </p>
               )}
 

@@ -368,11 +368,13 @@ body {
 }
 
 .company-table th {
-  background: var(--bg-input);
+  background: var(--bg-input) !important;
   font-weight: 600;
   color: var(--text-secondary);
   position: sticky;
   top: 0;
+  z-index: 10;
+  opacity: 1;
 }
 
 .company-table tr:last-child td {
