@@ -261,7 +261,8 @@ export async function batchCreateCompanies(
           const properties: Record<string, string> = {};
 
           if (fieldMapping.organizationName && company.organizationName) {
-            properties[fieldMapping.organizationName] = company.organizationName;
+            properties[fieldMapping.organizationName] =
+              company.organizationName;
           }
           if (fieldMapping.orgNumber && company.orgNumber) {
             properties[fieldMapping.orgNumber] = company.orgNumber;

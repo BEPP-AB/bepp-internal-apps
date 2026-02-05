@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadJobStatus, loadCompanies } from "@/src/services/job-storage";
+import { loadJob, deleteJob } from "@/src/services/job-storage";
 
 interface RouteParams {
   params: Promise<{
@@ -18,44 +18,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Load job status and companies in parallel
-    const [job, companies] = await Promise.all([
-      loadJobStatus(jobId),
-      loadCompanies(jobId),
-    ]);
+    const job = await loadJob(jobId);
 
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    const companiesList = companies || [];
-
-    // Derive companiesScraped from the actual companies array
-    // This is more reliable than depending on status blob being in sync
-    const actualCompaniesScraped = companiesList.length;
-
-    // Calculate pages scraped based on companies (10 per page)
-    const companiesPerPage = 10;
-    const actualPagesScraped = Math.ceil(
-      actualCompaniesScraped / companiesPerPage
-    );
-
-    // Use the actual count if it's higher than what status reports
-    // (handles case where companies blob is updated but status blob is stale)
-    const progress = {
-      ...job.progress,
-      companiesScraped: Math.max(
-        job.progress.companiesScraped,
-        actualCompaniesScraped
-      ),
-      currentPage: Math.max(job.progress.currentPage, actualPagesScraped),
-    };
-
     return NextResponse.json({
       jobId: job.jobId,
       status: job.status,
-      progress,
-      companies: companiesList,
+      progress: job.progress,
+      companies: job.companies,
       startedAt: job.startedAt,
       completedAt: job.completedAt,
       error: job.error,
@@ -65,6 +38,29 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     console.error("Status check error:", error);
     return NextResponse.json(
       { error: "Failed to get job status" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { jobId } = await params;
+
+    if (!jobId) {
+      return NextResponse.json(
+        { error: "Job ID is required" },
+        { status: 400 }
+      );
+    }
+
+    await deleteJob(jobId);
+
+    return NextResponse.json({ success: true, jobId });
+  } catch (error) {
+    console.error("Delete job error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete job" },
       { status: 500 }
     );
   }

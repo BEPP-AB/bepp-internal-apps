@@ -290,12 +290,20 @@ body {
   padding: 16px;
   border-radius: var(--radius-md);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .stat-value {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.5rem;
 }
 
 .stat-label {

@@ -4,12 +4,8 @@ import {
   scrapeAllCompanies,
   createScrapeJob,
 } from "@/src/services/allabolag-scraper";
-import {
-  generateJobId,
-  saveJobStatus,
-  saveCompanies,
-} from "@/src/services/job-storage";
-import { ScrapeJob } from "@/src/types/company";
+import { generateJobId, saveJob } from "@/src/services/job-storage";
+import { ScrapeJob, ScrapedCompany } from "@/src/types/company";
 
 export const maxDuration = 300; // 5 minutes max for Vercel
 
@@ -57,11 +53,11 @@ export async function POST(request: NextRequest) {
         companiesScraped: 0,
         totalCompanies: filterInfo.totalCompanies,
       },
+      companies: [],
     };
 
     // Save initial job state
-    await saveJobStatus(job);
-    await saveCompanies(jobId, []);
+    await saveJob(job);
 
     // Start scraping in the background
     // Note: This runs within the same request context but streams progress
@@ -73,7 +69,7 @@ export async function POST(request: NextRequest) {
         companiesScraped: 0,
         totalCompanies: filterInfo.totalCompanies,
       };
-      let finalCompanies: import("@/src/types/company").ScrapedCompany[] = [];
+      let finalCompanies: ScrapedCompany[] = [];
 
       try {
         for await (const progress of scrapeAllCompanies(filterInfo)) {
@@ -86,41 +82,34 @@ export async function POST(request: NextRequest) {
           };
           finalCompanies = progress.companies;
 
-          // Update job status with progress (still scraping)
-          const updatedJob: ScrapeJob = {
+          // Save job with updated progress and companies
+          await saveJob({
             ...job,
             status: "scraping",
             progress: finalProgress,
-          };
-
-          // Save companies first, then status
-          await saveCompanies(jobId, finalCompanies);
-          await saveJobStatus(updatedJob);
+            companies: finalCompanies,
+          });
         }
 
         // Mark job as completed after loop finishes
-        const completedJob: ScrapeJob = {
+        await saveJob({
           ...job,
           status: "completed",
           completedAt: Date.now(),
           progress: finalProgress,
-        };
-
-        // Save companies one final time to ensure they're persisted, then mark complete
-        await saveCompanies(jobId, finalCompanies);
-        await saveJobStatus(completedJob);
+          companies: finalCompanies,
+        });
       } catch (error) {
         console.error("Scraping error:", error);
 
         // Mark job as failed
-        const failedJob: ScrapeJob = {
+        await saveJob({
           ...job,
           status: "failed",
           error: error instanceof Error ? error.message : "Unknown error",
           completedAt: Date.now(),
-        };
-
-        await saveJobStatus(failedJob);
+          companies: finalCompanies,
+        });
       }
     })();
 

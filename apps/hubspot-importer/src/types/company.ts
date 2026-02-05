@@ -19,6 +19,7 @@ export interface ScrapeJob {
     companiesScraped: number;
     totalCompanies: number;
   };
+  companies: ScrapedCompany[];
   startedAt: number;
   completedAt?: number;
   error?: string;

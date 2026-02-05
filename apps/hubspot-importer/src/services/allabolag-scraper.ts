@@ -12,9 +12,9 @@ const USER_AGENTS = [
 ];
 
 // Rate limiting delay between page requests (ms)
-// Base delay: 5-10 seconds with randomization
-const MIN_DELAY_MS = 5000;
-const MAX_DELAY_MS = 10000;
+// Base delay: 2-4 seconds with randomization
+const MIN_DELAY_MS = 2000;
+const MAX_DELAY_MS = 4000;
 
 // Companies per page on AllaBolag
 const COMPANIES_PER_PAGE = 10;
@@ -309,8 +309,8 @@ function sleep(ms: number): Promise<void> {
  * Returns additional delay in ms
  */
 function simulateReadingTime(companiesOnPage: number): number {
-  // Humans take ~2-5 seconds to scan a list of 10 companies
-  const baseReadTime = 2000 + Math.random() * 3000;
+  // Humans take ~1-3 seconds to scan a list of 10 companies
+  const baseReadTime = 1000 + Math.random() * 2000;
 
   // Scale slightly with number of companies
   const scaledTime = baseReadTime * (companiesOnPage / 10);
@@ -331,7 +331,7 @@ export async function* scrapeAllCompanies(
   let previousUrl: string | undefined;
 
   // Add initial delay to simulate user arriving at the page
-  await sleep(getRandomDelay(2000, 4000));
+  await sleep(getRandomDelay(1000, 2000));
 
   while (currentPage <= filterInfo.totalPages) {
     try {
@@ -379,7 +379,7 @@ export async function* scrapeAllCompanies(
       console.error(`Error scraping page ${currentPage}:`, error);
 
       // On error, wait longer before retry (exponential backoff-ish)
-      const errorDelay = getRandomDelay(10000, 20000);
+      const errorDelay = getRandomDelay(5000, 10000);
       console.log(
         `Error encountered, waiting ${Math.round(
           errorDelay / 1000
@@ -405,7 +405,7 @@ export async function getFilterPreview(url: string): Promise<{
   }
 
   // Small delay to simulate user interaction
-  await sleep(getRandomDelay(1000, 3000));
+  await sleep(getRandomDelay(500, 1500));
 
   // Get first page as sample
   const sampleCompanies = await scrapePage(filterInfo.baseUrl, 1);
@@ -429,6 +429,7 @@ export function createScrapeJob(jobId: string, sourceUrl: string): ScrapeJob {
       companiesScraped: 0,
       totalCompanies: 0,
     },
+    companies: [],
     startedAt: Date.now(),
     sourceUrl,
   };

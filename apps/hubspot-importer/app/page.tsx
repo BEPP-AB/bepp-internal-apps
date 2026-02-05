@@ -332,14 +332,14 @@ export default function HubspotImporterPage() {
     : 0;
 
   // Calculate estimated time based on scraper delays
-  // Initial delay: 2-4s (avg 3s)
-  // Per page: reading ~3.5s + delay 5-10s (avg 7.5s) = ~11s per page
-  // Last page: only reading ~3.5s
-  // Total: 3 + (N-1) * 11 + 3.5 = 11*N - 4.5
+  // Initial delay: 1-2s (avg 1.5s)
+  // Per page: reading ~2s + delay 2-4s (avg 3s) = ~5s per page
+  // Last page: only reading ~2s
+  // Total: 1.5 + (N-1) * 5 + 2 = 5*N - 1.5
   const estimateTotalTime = (totalPages: number): number => {
     if (totalPages === 0) return 0;
-    if (totalPages === 1) return 4; // Initial delay + reading
-    return Math.ceil(11 * totalPages - 4.5);
+    if (totalPages === 1) return 3; // Initial delay + reading
+    return Math.ceil(5 * totalPages - 1.5);
   };
 
   const estimateRemainingTime = (
@@ -427,23 +427,8 @@ export default function HubspotImporterPage() {
 
       {/* Step 1: URL Input */}
       {currentStep === "input" && (
-        <div className="card">
-          <h2>Enter AllaBolag Filter URL</h2>
-          <p style={{ marginBottom: "20px", color: "var(--text-secondary)" }}>
-            Go to{" "}
-            <a
-              href="https://www.allabolag.se/segmentering"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: "var(--accent)" }}
-            >
-              allabolag.se/segmentering
-            </a>
-            , configure your filter, then paste the URL here.
-          </p>
-
+        <div>
           <div className="form-group">
-            <label>AllaBolag URL</label>
             <div className="url-input-group">
               <input
                 type="url"
@@ -461,17 +446,26 @@ export default function HubspotImporterPage() {
                 disabled={!url || previewLoading}
               >
                 {previewLoading ? (
-                  <span className="loading-spinner" />
+                  <span
+                    className="loading-spinner"
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                    }}
+                  />
                 ) : (
                   "Preview"
                 )}
               </button>
+              <button
+                className="btn btn-primary"
+                onClick={startScraping}
+                disabled={!previewData || !!urlError}
+              >
+                Start Import
+              </button>
             </div>
             {urlError && <span className="error-text">{urlError}</span>}
-            <span className="hint">
-              Example:
-              https://www.allabolag.se/segmentering?numEmployeesFrom=10&companyType=AB
-            </span>
           </div>
 
           {previewData && (
@@ -498,39 +492,12 @@ export default function HubspotImporterPage() {
               </div>
             </div>
           )}
-
-          <div className="action-bar">
-            <div />
-            <button
-              className="btn btn-primary btn-lg"
-              onClick={startScraping}
-              disabled={!previewData || !!urlError}
-            >
-              Start Import
-            </button>
-          </div>
         </div>
       )}
 
       {/* Step 2: Scraping Progress */}
       {currentStep === "scraping" && (
         <div className="card">
-          <h2 style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {scrapeStatus?.status === "scraping" && (
-              <span
-                className="loading-spinner"
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  borderWidth: "3px",
-                  borderColor: "var(--accent)",
-                  borderTopColor: "var(--bepp-navy-light)",
-                }}
-              />
-            )}
-            Scraping Companies from AllaBolag
-          </h2>
-
           {scrapeStatus ? (
             <>
               <div className="stats-row">
@@ -560,9 +527,6 @@ export default function HubspotImporterPage() {
                         style={{
                           width: "24px",
                           height: "24px",
-                          borderWidth: "3px",
-                          borderColor: "var(--accent)",
-                          borderTopColor: "var(--bepp-navy-light)",
                         }}
                       />
                     )}
