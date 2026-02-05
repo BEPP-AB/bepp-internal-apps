@@ -580,12 +580,14 @@ export default function HubspotImporterPage() {
 
   return (
     <main className="app">
-      <header className="header">
-        <h1>Hubspot Company Importer</h1>
-        <p className="subtitle">
-          Import company data from AllaBolag to Hubspot
-        </p>
-      </header>
+      {/* Hero Image */}
+      <section className="hero-section">
+        <img
+          src="/images/hubspot-importer-hero.png"
+          alt="Hero"
+          className="hero-image"
+        />
+      </section>
 
       {/* Step Indicator */}
       <div className="step-indicator">

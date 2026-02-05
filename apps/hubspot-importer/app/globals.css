@@ -63,6 +63,22 @@ body {
   font-size: 1.1rem;
 }
 
+/* Hero Section */
+.hero-section {
+  margin-bottom: 48px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+}
+
+.hero-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
 /* Step Indicator */
 .step-indicator {
   display: flex;
