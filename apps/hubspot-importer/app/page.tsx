@@ -9,6 +9,14 @@ import {
   ImportResult,
 } from "@/src/types/company";
 import { normalizeOrgNumber } from "@/src/services/duplicate-matcher";
+import {
+  MIN_DELAY_MS,
+  MAX_DELAY_MS,
+  INITIAL_DELAY_MIN_MS,
+  INITIAL_DELAY_MAX_MS,
+  MIN_READ_TIME_MS,
+  MAX_READ_TIME_MS,
+} from "@/src/services/allabolag-scraper";
 
 type Step =
   | "input"
@@ -518,15 +526,29 @@ export default function HubspotImporterPage() {
       )
     : 0;
 
-  // Calculate estimated time based on scraper delays
-  // Initial delay: 1-2s (avg 1.5s)
-  // Per page: reading ~2s + delay 2-4s (avg 3s) = ~5s per page
-  // Last page: only reading ~2s
-  // Total: 1.5 + (N-1) * 5 + 2 = 5*N - 1.5
+  // Calculate estimated time based on scraper delay constants
+  // Uses average values from the scraper constants
   const estimateTotalTime = (totalPages: number): number => {
     if (totalPages === 0) return 0;
-    if (totalPages === 1) return 3; // Initial delay + reading
-    return Math.ceil(5 * totalPages - 1.5);
+
+    // Calculate average delays (in seconds)
+    const avgInitialDelay =
+      (INITIAL_DELAY_MIN_MS + INITIAL_DELAY_MAX_MS) / 2 / 1000;
+    const avgReadingTime = (MIN_READ_TIME_MS + MAX_READ_TIME_MS) / 2 / 1000;
+    const avgPageDelay = (MIN_DELAY_MS + MAX_DELAY_MS) / 2 / 1000;
+
+    if (totalPages === 1) {
+      // Initial delay + reading time for single page
+      return Math.ceil(avgInitialDelay + avgReadingTime);
+    }
+
+    // Initial delay + (N-1) pages with reading + delay + final page reading
+    const totalTime =
+      avgInitialDelay +
+      (totalPages - 1) * (avgReadingTime + avgPageDelay) +
+      avgReadingTime;
+
+    return Math.ceil(totalTime);
   };
 
   const estimateRemainingTime = (
@@ -540,9 +562,20 @@ export default function HubspotImporterPage() {
     const companiesPerPage = 10;
     const remainingPages = Math.ceil(remainingCompanies / companiesPerPage);
 
-    if (remainingPages === 1) return 4; // Just reading time for last page
-    // (remainingPages - 1) * 11s + 3.5s for last page
-    return Math.ceil(11 * (remainingPages - 1) + 3.5);
+    // Calculate average delays (in seconds)
+    const avgReadingTime = (MIN_READ_TIME_MS + MAX_READ_TIME_MS) / 2 / 1000;
+    const avgPageDelay = (MIN_DELAY_MS + MAX_DELAY_MS) / 2 / 1000;
+
+    if (remainingPages === 1) {
+      // Just reading time for last page
+      return Math.ceil(avgReadingTime);
+    }
+
+    // (remainingPages - 1) pages with reading + delay + final page reading
+    const totalTime =
+      (remainingPages - 1) * (avgReadingTime + avgPageDelay) + avgReadingTime;
+
+    return Math.ceil(totalTime);
   };
 
   return (

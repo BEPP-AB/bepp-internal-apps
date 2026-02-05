@@ -12,9 +12,17 @@ const USER_AGENTS = [
 ];
 
 // Rate limiting delay between page requests (ms)
-// Base delay: 2-4 seconds with randomization
-const MIN_DELAY_MS = 2000;
-const MAX_DELAY_MS = 4000;
+// Base delay: 0.5-1.5 seconds with randomization
+export const MIN_DELAY_MS = 500;
+export const MAX_DELAY_MS = 1500;
+
+// Initial delay when starting scrape (ms)
+export const INITIAL_DELAY_MIN_MS = 300;
+export const INITIAL_DELAY_MAX_MS = 800;
+
+// Reading time constants (ms)
+export const MIN_READ_TIME_MS = 300;
+export const MAX_READ_TIME_MS = 800;
 
 // Companies per page on AllaBolag
 const COMPANIES_PER_PAGE = 10;
@@ -309,8 +317,9 @@ function sleep(ms: number): Promise<void> {
  * Returns additional delay in ms
  */
 function simulateReadingTime(companiesOnPage: number): number {
-  // Humans take ~1-3 seconds to scan a list of 10 companies
-  const baseReadTime = 1000 + Math.random() * 2000;
+  // Reduced reading time: ~0.3-0.8 seconds to scan a list of 10 companies
+  const baseReadTime =
+    MIN_READ_TIME_MS + Math.random() * (MAX_READ_TIME_MS - MIN_READ_TIME_MS);
 
   // Scale slightly with number of companies
   const scaledTime = baseReadTime * (companiesOnPage / 10);
@@ -331,7 +340,7 @@ export async function* scrapeAllCompanies(
   let previousUrl: string | undefined;
 
   // Add initial delay to simulate user arriving at the page
-  await sleep(getRandomDelay(1000, 2000));
+  await sleep(getRandomDelay(INITIAL_DELAY_MIN_MS, INITIAL_DELAY_MAX_MS));
 
   while (currentPage <= filterInfo.totalPages) {
     try {
