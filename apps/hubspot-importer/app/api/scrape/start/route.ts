@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import {
   parseFilterUrl,
   scrapeAllCompanies,
@@ -59,9 +60,9 @@ export async function POST(request: NextRequest) {
     // Save initial job state
     await saveJob(job);
 
-    // Start scraping in the background
-    // Note: This runs within the same request context but streams progress
-    (async () => {
+    // Start scraping in the background using after() to ensure it continues
+    // running after the response is sent to the client
+    after(async () => {
       // Track the final progress from the generator loop
       let finalProgress = {
         currentPage: 0,
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
           companies: finalCompanies,
         });
       }
-    })();
+    });
 
     // Return immediately with job ID
     return NextResponse.json({
