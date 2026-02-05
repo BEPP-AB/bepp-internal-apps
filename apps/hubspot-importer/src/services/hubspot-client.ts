@@ -190,11 +190,178 @@ export async function createCompany(
 }
 
 /**
+ * Ensure a dropdown option exists for a property
+ * Creates the option if it doesn't exist
+ */
+export async function ensureDropdownOption(
+  propertyName: string,
+  optionValue: string,
+  optionLabel: string
+): Promise<void> {
+  const client = getHubspotClient();
+
+  try {
+    // Get the property to check existing options
+    const property = await client.crm.properties.coreApi.getByName(
+      "company",
+      propertyName
+    );
+
+    // Verify it's a dropdown/select property
+    if (property.fieldType !== "select" && property.type !== "enumeration") {
+      throw new Error(
+        `Property ${propertyName} is not a dropdown/select property`
+      );
+    }
+
+    // Check if options are read-only
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const modificationMetadata = (property as any).modificationMetadata;
+    if (modificationMetadata?.readOnlyOptions === true) {
+      throw new Error(
+        `Property ${propertyName} has read-only options and cannot be modified via API. ` +
+          `Please add the option "${optionValue}" manually in HubSpot settings.`
+      );
+    }
+
+    // Check if option already exists (check both value and label)
+    const existingOptions = property.options || [];
+    const optionExists = existingOptions.some(
+      (opt: { value: string; label?: string }) =>
+        opt.value === optionValue || opt.label === optionLabel
+    );
+
+    if (optionExists) {
+      console.log(
+        `Option ${optionValue} already exists for property ${propertyName}`
+      );
+      return; // Option already exists, no need to create
+    }
+
+    // Calculate next display order
+    const maxDisplayOrder =
+      existingOptions.length > 0
+        ? Math.max(
+            ...existingOptions.map(
+              (opt: { displayOrder?: number }) => opt.displayOrder || 0
+            )
+          )
+        : 0;
+
+    // Preserve all existing options with all their properties
+    const preservedOptions = existingOptions.map(
+      (opt: {
+        label: string;
+        value: string;
+        displayOrder?: number;
+        hidden?: boolean;
+        description?: string;
+      }) => ({
+        label: opt.label,
+        value: opt.value,
+        displayOrder: opt.displayOrder ?? 0,
+        hidden: opt.hidden ?? false,
+        description: opt.description,
+      })
+    );
+
+    // Add the new option
+    const newOption = {
+      label: optionLabel,
+      value: optionValue,
+      displayOrder: maxDisplayOrder + 1,
+      hidden: false,
+    };
+
+    const updatedOptions = [...preservedOptions, newOption];
+
+    console.log(
+      `Adding option ${optionValue} to property ${propertyName}. Total options: ${updatedOptions.length}`
+    );
+
+    // Update the property with the new option
+    // Note: HubSpot API requires PATCH method to update property options
+    // The SDK's update method should handle this, but we need to ensure
+    // all required fields are present
+    try {
+      await client.crm.properties.coreApi.update("company", propertyName, {
+        options: updatedOptions,
+      });
+    } catch (updateError: unknown) {
+      const errorMessage =
+        updateError instanceof Error
+          ? updateError.message
+          : String(updateError);
+      console.error(
+        `Failed to update property ${propertyName} with new option:`,
+        errorMessage
+      );
+
+      // Check if it's a permissions error
+      if (
+        errorMessage.includes("permission") ||
+        errorMessage.includes("403") ||
+        errorMessage.includes("FORBIDDEN")
+      ) {
+        throw new Error(
+          `Permission denied: Cannot modify property ${propertyName}. ` +
+            `The API token may not have permission to update properties. ` +
+            `Please ensure the token has 'properties' scope.`
+        );
+      }
+
+      // Check if property is read-only
+      if (
+        errorMessage.includes("read-only") ||
+        errorMessage.includes("READ_ONLY")
+      ) {
+        throw new Error(
+          `Property ${propertyName} is read-only and cannot be modified via API. ` +
+            `Please add the option manually in HubSpot settings.`
+        );
+      }
+
+      throw updateError;
+    }
+
+    // Wait a bit for the update to propagate
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Verify the option was created by fetching the property again
+    const updatedProperty = await client.crm.properties.coreApi.getByName(
+      "company",
+      propertyName
+    );
+    const optionStillMissing = !updatedProperty.options?.some(
+      (opt: { value: string }) => opt.value === optionValue
+    );
+
+    if (optionStillMissing) {
+      console.error(
+        `Failed to verify option creation. Existing options:`,
+        updatedProperty.options?.map((opt: { value: string }) => opt.value)
+      );
+      throw new Error(
+        `Failed to create dropdown option ${optionValue} for property ${propertyName}. The option was not found after creation.`
+      );
+    }
+
+    console.log(
+      `Successfully created option ${optionValue} for property ${propertyName}`
+    );
+  } catch (error) {
+    console.error(`Error ensuring dropdown option for ${propertyName}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Batch create companies in Hubspot
  */
 export async function batchCreateCompanies(
   companies: ScrapedCompany[],
-  fieldMapping: FieldMapping
+  fieldMapping: FieldMapping,
+  jobId?: string
 ): Promise<ImportResult> {
   const client = getHubspotClient();
   const results: ImportResult = {
@@ -235,6 +402,11 @@ export async function batchCreateCompanies(
       }
       if (fieldMapping.allabolagUrl && company.allabolagUrl) {
         properties[fieldMapping.allabolagUrl] = company.allabolagUrl;
+      }
+
+      // Set Source field if jobId is provided
+      if (jobId) {
+        properties.kalla = `bepp-hubspot-importer-${jobId}`;
       }
 
       return { properties, associations: [] };
@@ -283,6 +455,11 @@ export async function batchCreateCompanies(
             properties[fieldMapping.allabolagUrl] = company.allabolagUrl;
           }
 
+          // Set Source field if jobId is provided
+          if (jobId) {
+            properties.kalla = `bepp-hubspot-importer-${jobId}`;
+          }
+
           const created = await createCompany(properties);
           results.created++;
           results.createdIds.push(created.id);
@@ -307,6 +484,74 @@ export async function batchCreateCompanies(
 
   results.success = results.failed === 0;
   return results;
+}
+
+/**
+ * Create a HubSpot list/view filtered by the kalla property (job ID)
+ * Returns the view ID that can be used in HubSpot URLs
+ */
+export async function createJobFilteredView(
+  jobId: string
+): Promise<string | null> {
+  const client = getHubspotClient();
+  const sourceValue = `bepp-hubspot-importer-${jobId}`;
+
+  try {
+    // Create a dynamic list filtered by the kalla property
+    // HubSpot requires root filter branch to be OR with nested AND branches
+    // HubSpot API types are complex, so we use any for the request body
+    const requestBody = {
+      name: `Import Job ${jobId}`,
+      objectTypeId: "0-2", // Companies object type ID
+      processingType: "DYNAMIC", // Dynamic list that updates automatically
+      filterBranch: {
+        filterBranchType: "OR",
+        filterBranchOperator: "OR",
+        filterBranches: [
+          {
+            filterBranchType: "AND",
+            filterBranchOperator: "AND",
+            filters: [
+              {
+                filterType: "PROPERTY",
+                property: "kalla",
+                operation: {
+                  operationType: "ENUMERATION",
+                  operator: "IS_ANY_OF",
+                  values: [sourceValue],
+                  includeObjectsWithNoValueSet: false,
+                },
+              },
+            ],
+            filterBranches: [],
+          },
+        ],
+        filters: [],
+      },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response: any = await (client.crm.lists.listsApi.create as any)(
+      requestBody
+    );
+
+    // Response structure: response.list.listId (according to API docs)
+    const viewId =
+      response.list?.listId || response.list?.id || response.listId;
+
+    if (viewId) {
+      console.log(`Created HubSpot list/view: ${viewId} for job ${jobId}`);
+      console.log(`List name: ${response.list?.name || requestBody.name}`);
+      return viewId.toString();
+    }
+
+    console.warn("No list ID found in response:", response);
+    return null;
+  } catch (error) {
+    console.error("Error creating filtered view:", error);
+    // Don't throw - view creation is optional
+    return null;
+  }
 }
 
 /**
@@ -387,8 +632,8 @@ export async function createCompanyProperty(property: {
     const response = await client.crm.properties.coreApi.create("company", {
       name: property.name,
       label: property.label,
-      type: property.type,
-      fieldType: property.fieldType,
+      type: property.type as unknown as string, // HubSpot SDK type mismatch
+      fieldType: property.fieldType as unknown as string, // HubSpot SDK type mismatch
       groupName: property.groupName || "companyinformation",
       description: property.description,
     });

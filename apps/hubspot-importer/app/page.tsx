@@ -8,6 +8,7 @@ import {
   FieldMapping,
   ImportResult,
 } from "@/src/types/company";
+import { normalizeOrgNumber } from "@/src/services/duplicate-matcher";
 
 type Step =
   | "input"
@@ -68,12 +69,12 @@ interface JobSummary {
 // Default field mapping suggestions
 const DEFAULT_MAPPING: FieldMapping = {
   organizationName: "name",
-  orgNumber: "org_number",
+  orgNumber: "organisation_number_swedish_bolagsverket",
   zipCode: "zip",
   city: "city",
   revenue: "annualrevenue",
   employees: "numberofemployees",
-  allabolagUrl: "allabolag_url",
+  allabolagUrl: "allabolag_link",
 };
 
 export default function HubspotImporterPage() {
@@ -105,6 +106,9 @@ export default function HubspotImporterPage() {
   );
   const [fieldMapping, setFieldMapping] =
     useState<FieldMapping>(DEFAULT_MAPPING);
+  const [skippedFields, setSkippedFields] = useState<Set<keyof FieldMapping>>(
+    new Set()
+  );
   const [propertiesLoading, setPropertiesLoading] = useState(false);
 
   // Import step
@@ -119,7 +123,8 @@ export default function HubspotImporterPage() {
   // Get companies to import (filtered by confirmed duplicates)
   const companiesToImport =
     scrapeStatus?.companies.filter(
-      (company) => !confirmedDuplicates.has(company.orgNumber.replace(/-/g, ""))
+      (company) =>
+        !confirmedDuplicates.has(normalizeOrgNumber(company.orgNumber))
     ) || [];
 
   // Validate URL
@@ -229,7 +234,12 @@ export default function HubspotImporterPage() {
       const response = await fetch("/api/duplicates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companies: scrapeStatus.companies }),
+        body: JSON.stringify({
+          companies: scrapeStatus.companies,
+          orgNumberPropertyName:
+            fieldMapping.orgNumber ||
+            "organisation_number_swedish_bolagsverket",
+        }),
       });
 
       const data: DuplicatesResponse = await response.json();
@@ -245,7 +255,7 @@ export default function HubspotImporterPage() {
           d.matchType === "org_number" ||
           (d.matchType === "name_similarity" && (d.similarity ?? 0) > 0.85);
         if (shouldCheck) {
-          confirmed.add(d.scrapedCompany.orgNumber.replace(/-/g, ""));
+          confirmed.add(normalizeOrgNumber(d.scrapedCompany.orgNumber));
         }
       });
       setConfirmedDuplicates(confirmed);
@@ -257,8 +267,15 @@ export default function HubspotImporterPage() {
   };
 
   // Toggle duplicate confirmation
-  const toggleDuplicate = (orgNumber: string) => {
-    const normalized = orgNumber.replace(/-/g, "");
+  const toggleDuplicate = (
+    orgNumber: string,
+    matchType?: "org_number" | "name_similarity"
+  ) => {
+    // Prevent toggling org number matches - they should always be excluded
+    if (matchType === "org_number") {
+      return;
+    }
+    const normalized = normalizeOrgNumber(orgNumber);
     setConfirmedDuplicates((prev) => {
       const next = new Set(prev);
       if (next.has(normalized)) {
@@ -286,11 +303,34 @@ export default function HubspotImporterPage() {
       setFieldMapping((prev) => {
         const validated: FieldMapping = { ...prev };
         for (const key of Object.keys(validated) as (keyof FieldMapping)[]) {
-          if (validated[key] && !validPropertyNames.has(validated[key])) {
-            validated[key] = ""; // Set to empty string (Skip) if property doesn't exist
+          // Non-editable fields: orgNumber and allabolagUrl must always be mapped
+          const isNonEditable = key === "orgNumber" || key === "allabolagUrl";
+
+          if (isNonEditable) {
+            // Ensure non-editable fields have their default mappings
+            if (key === "orgNumber" && !validated[key]) {
+              validated[key] = "org_number";
+            } else if (key === "allabolagUrl" && !validated[key]) {
+              validated[key] = "allabolag_url";
+            }
+            // If the mapped property doesn't exist, keep the default anyway
+            // (it will be created if needed)
+          } else {
+            // For editable fields, clear if property doesn't exist
+            if (validated[key] && !validPropertyNames.has(validated[key])) {
+              validated[key] = ""; // Set to empty string (Skip) if property doesn't exist
+            }
           }
         }
         return validated;
+      });
+
+      // Ensure non-editable fields are never skipped
+      setSkippedFields((prev) => {
+        const next = new Set(prev);
+        next.delete("orgNumber");
+        next.delete("allabolagUrl");
+        return next;
       });
     } catch (error) {
       console.error("Properties fetch error:", error);
@@ -301,6 +341,10 @@ export default function HubspotImporterPage() {
 
   // Update field mapping
   const updateMapping = (field: keyof FieldMapping, value: string) => {
+    // Prevent changes to non-editable fields
+    if (field === "orgNumber" || field === "allabolagUrl") {
+      return;
+    }
     setFieldMapping((prev) => ({
       ...prev,
       [field]: value,
@@ -319,11 +363,44 @@ export default function HubspotImporterPage() {
         body: JSON.stringify({
           companies: companiesToImport,
           fieldMapping,
+          jobId: scrapeStatus?.jobId,
         }),
       });
 
-      const result: ImportResult = await response.json();
-      setImportResult(result);
+      const data = await response.json();
+
+      // Check if the response is an error
+      if (!response.ok || data.error) {
+        setImportResult({
+          success: false,
+          created: 0,
+          failed: companiesToImport.length,
+          errors: [
+            {
+              company: companiesToImport[0] || {
+                organizationName: "Unknown",
+                orgNumber: "",
+                zipCode: "",
+                city: "",
+                revenue: null,
+                employees: null,
+                allabolagUrl: "",
+              },
+              error:
+                data.error || `HTTP ${response.status}: ${response.statusText}`,
+            },
+          ],
+          createdIds: [],
+        });
+      } else {
+        // Ensure errors array exists
+        const result: ImportResult = {
+          ...data,
+          errors: data.errors || [],
+          createdIds: data.createdIds || [],
+        };
+        setImportResult(result);
+      }
       setCurrentStep("complete");
     } catch (error) {
       console.error("Import error:", error);
@@ -331,7 +408,23 @@ export default function HubspotImporterPage() {
         success: false,
         created: 0,
         failed: companiesToImport.length,
-        errors: [],
+        errors: [
+          {
+            company: companiesToImport[0] || {
+              organizationName: "Unknown",
+              orgNumber: "",
+              zipCode: "",
+              city: "",
+              revenue: null,
+              employees: null,
+              allabolagUrl: "",
+            },
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to import companies",
+          },
+        ],
         createdIds: [],
       });
       setCurrentStep("complete");
@@ -820,16 +913,18 @@ export default function HubspotImporterPage() {
                             DuplicateMatch
                           >();
                           duplicates.forEach((dup) => {
-                            const normalizedOrgNum =
-                              dup.scrapedCompany.orgNumber.replace(/-/g, "");
+                            const normalizedOrgNum = normalizeOrgNumber(
+                              dup.scrapedCompany.orgNumber
+                            );
                             duplicateMap.set(normalizedOrgNum, dup);
                           });
 
                           // Combine all companies with their duplicate info
                           const companiesWithDuplicates =
                             scrapeStatus.companies.map((company) => {
-                              const normalizedOrgNum =
-                                company.orgNumber.replace(/-/g, "");
+                              const normalizedOrgNum = normalizeOrgNumber(
+                                company.orgNumber
+                              );
                               const duplicate =
                                 duplicateMap.get(normalizedOrgNum);
                               return {
@@ -871,16 +966,25 @@ export default function HubspotImporterPage() {
 
                           return companiesWithDuplicates.map((item, idx) => {
                             const isExcluded = confirmedDuplicates.has(
-                              item.company.orgNumber.replace(/-/g, "")
+                              normalizeOrgNumber(item.company.orgNumber)
                             );
+                            const isOrgNumberMatch =
+                              item.duplicate?.matchType === "org_number";
+                            const isClickable = !isOrgNumberMatch;
                             return (
                               <tr
                                 key={idx}
                                 onClick={() =>
-                                  toggleDuplicate(item.company.orgNumber)
+                                  isClickable &&
+                                  toggleDuplicate(
+                                    item.company.orgNumber,
+                                    item.duplicate?.matchType
+                                  )
                                 }
                                 style={{
-                                  cursor: "pointer",
+                                  cursor: isClickable
+                                    ? "pointer"
+                                    : "not-allowed",
                                   opacity: isExcluded ? 0.5 : 1,
                                   textDecoration: isExcluded
                                     ? "line-through"
@@ -917,7 +1021,7 @@ export default function HubspotImporterPage() {
                                       className={`badge ${
                                         item.duplicate.matchType ===
                                         "org_number"
-                                          ? "badge-success"
+                                          ? "badge-error"
                                           : "badge-warning"
                                       }`}
                                     >
@@ -1003,137 +1107,401 @@ export default function HubspotImporterPage() {
                   <tr>
                     <th>Field</th>
                     <th>Hubspot Property</th>
+                    <th style={{ width: "100px" }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>
-                      Organization Name<span className="required">*</span>
-                    </td>
-                    <td>
-                      <select
-                        value={fieldMapping.organizationName}
-                        onChange={(e) =>
-                          updateMapping("organizationName", e.target.value)
-                        }
-                      >
-                        <option value="">Skip</option>
-                        {hubspotProperties.map((prop) => (
-                          <option key={prop.name} value={prop.name}>
-                            {prop.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Org Number</td>
-                    <td>
-                      <select
-                        value={fieldMapping.orgNumber}
-                        onChange={(e) =>
-                          updateMapping("orgNumber", e.target.value)
-                        }
-                      >
-                        <option value="">Skip</option>
-                        {hubspotProperties.map((prop) => (
-                          <option key={prop.name} value={prop.name}>
-                            {prop.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Zip Code</td>
-                    <td>
-                      <select
-                        value={fieldMapping.zipCode}
-                        onChange={(e) =>
-                          updateMapping("zipCode", e.target.value)
-                        }
-                      >
-                        <option value="">Skip</option>
-                        {hubspotProperties.map((prop) => (
-                          <option key={prop.name} value={prop.name}>
-                            {prop.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>City</td>
-                    <td>
-                      <select
-                        value={fieldMapping.city}
-                        onChange={(e) => updateMapping("city", e.target.value)}
-                      >
-                        <option value="">Skip</option>
-                        {hubspotProperties.map((prop) => (
-                          <option key={prop.name} value={prop.name}>
-                            {prop.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Revenue (TSEK)</td>
-                    <td>
-                      <select
-                        value={fieldMapping.revenue}
-                        onChange={(e) =>
-                          updateMapping("revenue", e.target.value)
-                        }
-                      >
-                        <option value="">Skip</option>
-                        {hubspotProperties.map((prop) => (
-                          <option key={prop.name} value={prop.name}>
-                            {prop.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Employees</td>
-                    <td>
-                      <select
-                        value={fieldMapping.employees}
-                        onChange={(e) =>
-                          updateMapping("employees", e.target.value)
-                        }
-                      >
-                        <option value="">Skip</option>
-                        {hubspotProperties.map((prop) => (
-                          <option key={prop.name} value={prop.name}>
-                            {prop.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>AllaBolag URL</td>
-                    <td>
-                      <select
-                        value={fieldMapping.allabolagUrl}
-                        onChange={(e) =>
-                          updateMapping("allabolagUrl", e.target.value)
-                        }
-                      >
-                        <option value="">Skip</option>
-                        {hubspotProperties.map((prop) => (
-                          <option key={prop.name} value={prop.name}>
-                            {prop.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
+                  {(() => {
+                    // Editable fields (can be changed or skipped)
+                    const editableFields = [
+                      {
+                        field: "organizationName" as keyof FieldMapping,
+                        label: "Organization Name",
+                        required: true,
+                      },
+                      {
+                        field: "zipCode" as keyof FieldMapping,
+                        label: "Zip Code",
+                        required: false,
+                      },
+                      {
+                        field: "city" as keyof FieldMapping,
+                        label: "City",
+                        required: false,
+                      },
+                      {
+                        field: "revenue" as keyof FieldMapping,
+                        label: "Revenue (TSEK)",
+                        required: false,
+                      },
+                      {
+                        field: "employees" as keyof FieldMapping,
+                        label: "Employees",
+                        required: false,
+                      },
+                    ];
+
+                    // Non-editable fields (fixed mapping, shown at end)
+                    const nonEditableFields = [
+                      {
+                        field: "orgNumber" as keyof FieldMapping,
+                        label: "Org Nr",
+                        required: false,
+                      },
+                      {
+                        field: "allabolagUrl" as keyof FieldMapping,
+                        label: "Alla Bolag Link",
+                        required: false,
+                      },
+                    ];
+
+                    // Combine: editable first, then non-editable
+                    const allFields = [...editableFields, ...nonEditableFields];
+
+                    return allFields.map(({ field, label, required }) => {
+                      const isNonEditable = nonEditableFields.some(
+                        (f) => f.field === field
+                      );
+                      // A field is skipped if it's in skippedFields AND has no value
+                      // Non-editable fields can never be skipped
+                      const isSkipped =
+                        !isNonEditable &&
+                        skippedFields.has(field) &&
+                        !fieldMapping[field];
+                      return (
+                        <tr
+                          key={field}
+                          style={{
+                            textDecoration: isSkipped ? "line-through" : "none",
+                            opacity: isSkipped ? 0.6 : 1,
+                            backgroundColor: isNonEditable
+                              ? "var(--bg-input)"
+                              : "transparent",
+                          }}
+                        >
+                          <td>
+                            {label}
+                            {required && <span className="required">*</span>}
+                          </td>
+                          <td>
+                            <select
+                              value={fieldMapping[field] || ""}
+                              onChange={(e) => {
+                                if (!isNonEditable) {
+                                  updateMapping(field, e.target.value);
+                                  // If selecting a value, unskip automatically
+                                  if (e.target.value) {
+                                    setSkippedFields((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(field);
+                                      return next;
+                                    });
+                                  }
+                                }
+                              }}
+                              disabled={isSkipped || isNonEditable}
+                              style={{
+                                opacity: isNonEditable ? 0.7 : 1,
+                                cursor: isNonEditable
+                                  ? "not-allowed"
+                                  : "pointer",
+                              }}
+                            >
+                              <option value="">Select property...</option>
+                              {hubspotProperties.map((prop) => {
+                                // Format the property name nicely (split by underscore, capitalize)
+                                const formattedName = prop.name
+                                  .split("_")
+                                  .map(
+                                    (word) =>
+                                      word.charAt(0).toUpperCase() +
+                                      word.slice(1).toLowerCase()
+                                  )
+                                  .join(" ");
+
+                                // Use label if it's meaningful (more than 2 chars and different from formatted name)
+                                // Otherwise use the formatted name
+                                const displayName =
+                                  prop.label &&
+                                  prop.label.length > 2 &&
+                                  prop.label.toLowerCase() !==
+                                    formattedName.toLowerCase()
+                                    ? `${prop.label} (${formattedName})`
+                                    : formattedName;
+
+                                return (
+                                  <option key={prop.name} value={prop.name}>
+                                    {displayName}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </td>
+                          <td>
+                            {isNonEditable ? (
+                              <span
+                                style={{
+                                  color: "var(--text-secondary)",
+                                  fontSize: "0.875rem",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                Fixed
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isSkipped) {
+                                    // Unskip: remove from skipped set
+                                    setSkippedFields((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(field);
+                                      return next;
+                                    });
+                                  } else {
+                                    // Skip: add to skipped set and clear value
+                                    setSkippedFields((prev) => {
+                                      const next = new Set(prev);
+                                      next.add(field);
+                                      return next;
+                                    });
+                                    updateMapping(field, "");
+                                  }
+                                }}
+                                className="btn btn-sm"
+                                style={{
+                                  padding: "6px 12px",
+                                  fontSize: "0.875rem",
+                                  minWidth: "70px",
+                                  backgroundColor: isSkipped
+                                    ? "var(--success)"
+                                    : "var(--bg-input)",
+                                  color: isSkipped
+                                    ? "white"
+                                    : "var(--text-primary)",
+                                  border: `1px solid ${
+                                    isSkipped
+                                      ? "var(--success)"
+                                      : "var(--border-color)"
+                                  }`,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {isSkipped ? "Unskip" : "Skip"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
+
+              {/* Preview Section */}
+              {companiesToImport.length > 0 && (
+                <div
+                  style={{
+                    marginTop: "32px",
+                    padding: "20px",
+                    backgroundColor: "var(--bg-input)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  <h3
+                    style={{
+                      marginTop: 0,
+                      marginBottom: "16px",
+                      fontSize: "1rem",
+                      fontWeight: 600,
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Preview: How data will be imported
+                  </h3>
+                  <p
+                    style={{
+                      marginBottom: "16px",
+                      fontSize: "0.875rem",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    Example from first company to be imported:
+                  </p>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(300px, 1fr))",
+                      gap: "12px",
+                    }}
+                  >
+                    {(() => {
+                      const sampleCompany = companiesToImport[0];
+                      const previewData: Array<{
+                        hubspotProperty: string;
+                        value: string;
+                        isMapped: boolean;
+                      }> = [];
+
+                      // Get property label for display
+                      const getPropertyLabel = (propertyName: string) => {
+                        const prop = hubspotProperties.find(
+                          (p) => p.name === propertyName
+                        );
+                        if (prop && prop.label && prop.label.length > 2) {
+                          return prop.label;
+                        }
+                        return propertyName
+                          .split("_")
+                          .map(
+                            (word) =>
+                              word.charAt(0).toUpperCase() +
+                              word.slice(1).toLowerCase()
+                          )
+                          .join(" ");
+                      };
+
+                      // Check each field mapping
+                      if (
+                        fieldMapping.organizationName &&
+                        sampleCompany.organizationName
+                      ) {
+                        previewData.push({
+                          hubspotProperty: getPropertyLabel(
+                            fieldMapping.organizationName
+                          ),
+                          value: sampleCompany.organizationName,
+                          isMapped: true,
+                        });
+                      }
+                      if (fieldMapping.orgNumber && sampleCompany.orgNumber) {
+                        previewData.push({
+                          hubspotProperty: getPropertyLabel(
+                            fieldMapping.orgNumber
+                          ),
+                          value: sampleCompany.orgNumber,
+                          isMapped: true,
+                        });
+                      }
+                      if (fieldMapping.zipCode && sampleCompany.zipCode) {
+                        previewData.push({
+                          hubspotProperty: getPropertyLabel(
+                            fieldMapping.zipCode
+                          ),
+                          value: sampleCompany.zipCode,
+                          isMapped: true,
+                        });
+                      }
+                      if (fieldMapping.city && sampleCompany.city) {
+                        previewData.push({
+                          hubspotProperty: getPropertyLabel(fieldMapping.city),
+                          value: sampleCompany.city,
+                          isMapped: true,
+                        });
+                      }
+                      if (fieldMapping.revenue && sampleCompany.revenue) {
+                        previewData.push({
+                          hubspotProperty: getPropertyLabel(
+                            fieldMapping.revenue
+                          ),
+                          value: sampleCompany.revenue,
+                          isMapped: true,
+                        });
+                      }
+                      if (fieldMapping.employees && sampleCompany.employees) {
+                        previewData.push({
+                          hubspotProperty: getPropertyLabel(
+                            fieldMapping.employees
+                          ),
+                          value: sampleCompany.employees,
+                          isMapped: true,
+                        });
+                      }
+                      if (
+                        fieldMapping.allabolagUrl &&
+                        sampleCompany.allabolagUrl
+                      ) {
+                        previewData.push({
+                          hubspotProperty: getPropertyLabel(
+                            fieldMapping.allabolagUrl
+                          ),
+                          value: sampleCompany.allabolagUrl,
+                          isMapped: true,
+                        });
+                      }
+
+                      // Add Source field (always set for imported companies)
+                      if (scrapeStatus?.jobId) {
+                        previewData.push({
+                          hubspotProperty: getPropertyLabel("kalla"),
+                          value: `bepp-hubspot-importer-${scrapeStatus.jobId}`,
+                          isMapped: true,
+                        });
+                      }
+
+                      if (previewData.length === 0) {
+                        return (
+                          <div
+                            style={{
+                              color: "var(--text-secondary)",
+                              fontStyle: "italic",
+                            }}
+                          >
+                            No fields are currently mapped. Please map at least
+                            one field to see a preview.
+                          </div>
+                        );
+                      }
+
+                      return previewData.map((item, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: "12px",
+                            backgroundColor: "var(--bg-card)",
+                            borderRadius: "var(--radius-sm)",
+                            border: "1px solid var(--border-color)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              color: "var(--text-secondary)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            {item.hubspotProperty}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "0.95rem",
+                              color: "var(--text-primary)",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {item.value || (
+                              <span
+                                style={{
+                                  color: "var(--text-muted)",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                (empty)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
 
               <div className="action-bar">
                 <button
@@ -1143,7 +1511,7 @@ export default function HubspotImporterPage() {
                   Back
                 </button>
                 <button
-                  className="btn btn-hubspot btn-lg"
+                  className="btn btn-hubspot"
                   onClick={startImport}
                   disabled={!fieldMapping.organizationName}
                 >
@@ -1205,7 +1573,7 @@ export default function HubspotImporterPage() {
                 </div>
               </div>
 
-              {importResult.errors.length > 0 && (
+              {importResult.errors && importResult.errors.length > 0 && (
                 <div style={{ marginTop: "20px" }}>
                   <h3>Errors</h3>
                   <div
@@ -1239,7 +1607,11 @@ export default function HubspotImporterPage() {
                   Start New Import
                 </button>
                 <a
-                  href="https://app-eu1.hubspot.com/contacts/144470660/objects/0-2/views/144515327/list?noprefetch="
+                  href={
+                    importResult?.viewId
+                      ? `https://app-eu1.hubspot.com/contacts/144470660/objectLists/${importResult.viewId}/filters`
+                      : "https://app-eu1.hubspot.com/contacts/144470660/objects/0-2/"
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-hubspot"

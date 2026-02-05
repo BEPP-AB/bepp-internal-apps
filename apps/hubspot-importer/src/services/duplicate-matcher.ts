@@ -75,10 +75,13 @@ function normalizeCompanyName(name: string): string {
 
 /**
  * Normalize organization number for comparison
+ * Handles formats like "556199-8484", "5561998484", " 556199-8484 ", etc.
+ * Exported for use in UI and other modules
  */
-function normalizeOrgNumber(orgNumber: string): string {
-  // Remove all non-digit characters
-  return orgNumber.replace(/\D/g, "");
+export function normalizeOrgNumber(orgNumber: string): string {
+  if (!orgNumber) return "";
+  // Trim whitespace first, then remove all non-digit characters
+  return String(orgNumber).trim().replace(/\D/g, "");
 }
 
 // Similarity threshold for name matching (50%)
@@ -106,9 +109,13 @@ export async function findDuplicates(
   for (const company of hubspotCompanies) {
     const orgNumber = company.properties[orgNumberPropertyName];
     if (orgNumber) {
-      const normalized = normalizeOrgNumber(orgNumber);
-      if (normalized.length === 10) {
-        hubspotByOrgNumber.set(normalized, company);
+      const normalized = normalizeOrgNumber(String(orgNumber));
+      // Swedish org numbers are 10 digits, but be lenient for edge cases
+      if (normalized.length >= 8 && normalized.length <= 12) {
+        // If multiple companies have the same org number, keep the first one
+        if (!hubspotByOrgNumber.has(normalized)) {
+          hubspotByOrgNumber.set(normalized, company);
+        }
       }
     }
   }
@@ -118,22 +125,25 @@ export async function findDuplicates(
     const scraped = scrapedCompanies[i];
 
     if (scraped.orgNumber) {
-      const normalizedOrgNum = normalizeOrgNumber(scraped.orgNumber);
-      const hubspotMatch = hubspotByOrgNumber.get(normalizedOrgNum);
+      const normalizedOrgNum = normalizeOrgNumber(String(scraped.orgNumber));
+      // Only try to match if we have a valid-looking org number
+      if (normalizedOrgNum.length >= 8 && normalizedOrgNum.length <= 12) {
+        const hubspotMatch = hubspotByOrgNumber.get(normalizedOrgNum);
 
-      if (hubspotMatch) {
-        duplicates.push({
-          scrapedCompany: scraped,
-          hubspotCompany: {
-            id: hubspotMatch.id,
-            name: hubspotMatch.properties.name || "Unknown",
-            domain: hubspotMatch.properties.domain || undefined,
-            orgNumber:
-              hubspotMatch.properties[orgNumberPropertyName] || undefined,
-          },
-          matchType: "org_number",
-        });
-        processedScrapedIndices.add(i);
+        if (hubspotMatch) {
+          duplicates.push({
+            scrapedCompany: scraped,
+            hubspotCompany: {
+              id: hubspotMatch.id,
+              name: hubspotMatch.properties.name || "Unknown",
+              domain: hubspotMatch.properties.domain || undefined,
+              orgNumber:
+                hubspotMatch.properties[orgNumberPropertyName] || undefined,
+            },
+            matchType: "org_number",
+          });
+          processedScrapedIndices.add(i);
+        }
       }
     }
   }

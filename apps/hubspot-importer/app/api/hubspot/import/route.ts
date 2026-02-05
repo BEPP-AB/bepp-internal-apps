@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { batchCreateCompanies } from "@/src/services/hubspot-client";
+import {
+  batchCreateCompanies,
+  ensureDropdownOption,
+  createJobFilteredView,
+} from "@/src/services/hubspot-client";
 import { ScrapedCompany, FieldMapping } from "@/src/types/company";
 
 interface ImportRequest {
   companies: ScrapedCompany[];
   fieldMapping: FieldMapping;
+  jobId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -47,11 +52,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ensure Source dropdown option exists if jobId is provided
+    if (body.jobId) {
+      const sourceValue = `bepp-hubspot-importer-${body.jobId}`;
+      try {
+        await ensureDropdownOption("kalla", sourceValue, sourceValue);
+      } catch (error) {
+        console.error("Error ensuring Source dropdown option:", error);
+        return NextResponse.json(
+          {
+            error: `Failed to create Source dropdown option: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     // Import companies
     const result = await batchCreateCompanies(
       body.companies,
-      body.fieldMapping
+      body.fieldMapping,
+      body.jobId
     );
+
+    // Create a filtered view for this job if jobId is provided
+    if (body.jobId && result.success) {
+      try {
+        const viewId = await createJobFilteredView(body.jobId);
+        result.viewId = viewId;
+      } catch (error) {
+        console.error("Error creating filtered view:", error);
+        // Don't fail the import if view creation fails
+        result.viewId = null;
+      }
+    }
 
     return NextResponse.json(result);
   } catch (error) {
@@ -59,9 +95,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to import companies",
+          error instanceof Error ? error.message : "Failed to import companies",
       },
       { status: 500 }
     );

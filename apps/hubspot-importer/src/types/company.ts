@@ -70,4 +70,5 @@ export interface ImportResult {
     error: string;
   }>;
   createdIds: string[];
+  viewId?: string | null; // HubSpot view/list ID for filtering by job
 }
