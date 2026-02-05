@@ -7,8 +7,10 @@ interface InternalApp {
   imageUrl: string;
 }
 
-const BEPP_INTERNAL_APPS_EMAIL_SIGNATURES_URL = "http://localhost:3001";
-const BEPP_INTERNAL_APPS_HUBSPOT_IMPORTER_URL = "http://localhost:3002";
+const BEPP_INTERNAL_APPS_EMAIL_SIGNATURES_URL =
+  process.env.NEXT_PUBLIC_EMAIL_SIGNATURES_URL || "http://localhost:3001";
+const BEPP_INTERNAL_APPS_HUBSPOT_IMPORTER_URL =
+  process.env.NEXT_PUBLIC_HUBSPOT_IMPORTER_URL || "http://localhost:3002";
 
 // Configure your internal apps here
 // In development: apps run on separate ports (hub: 3000, email-signatures: 3001, hubspot-importer: 3002)
