@@ -638,7 +638,7 @@ export default function Home() {
       {/* Hero Image */}
       <section className="hero-section">
         <img
-          src="https://s6aizkvzvnhvjqhd.public.blob.vercel-storage.com/generic-assets/hero-yUUUtwtLyl8ijGabvupe5GqmHy7Nns.jpg"
+          src="/images/email-signatures-hero.png"
           alt="Hero"
           className="hero-image"
         />
