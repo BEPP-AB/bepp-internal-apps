@@ -73,3 +73,50 @@ export async function deleteJob(jobId: string): Promise<void> {
     console.error("Error deleting job:", error);
   }
 }
+
+/**
+ * List all jobs from Redis
+ * Returns jobs sorted by startedAt (newest first)
+ */
+export async function listAllJobs(): Promise<ScrapeJob[]> {
+  try {
+    // Use keys command to find all job keys
+    const pattern = `${JOBS_PREFIX}:*`;
+    const keys = await redis.keys(pattern);
+
+    if (!keys || keys.length === 0) {
+      return [];
+    }
+
+    // Load all jobs
+    const jobs = await Promise.all(
+      keys.map(async (key) => {
+        try {
+          const data = await redis.get<string>(key);
+          if (!data) {
+            return null;
+          }
+
+          // Parse JSON if needed
+          if (typeof data === "string") {
+            return JSON.parse(data) as ScrapeJob;
+          }
+          return data as unknown as ScrapeJob;
+        } catch (error) {
+          console.error(`Error loading job from key ${key}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Filter out null values and sort by startedAt (newest first)
+    const validJobs = jobs
+      .filter((job): job is ScrapeJob => job !== null)
+      .sort((a, b) => b.startedAt - a.startedAt);
+
+    return validJobs;
+  } catch (error) {
+    console.error("Error listing jobs:", error);
+    return [];
+  }
+}

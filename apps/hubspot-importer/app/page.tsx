@@ -28,6 +28,9 @@ interface ScrapeStatus {
   };
   companies: ScrapedCompany[];
   error?: string;
+  sourceUrl?: string;
+  startedAt?: number;
+  completedAt?: number;
 }
 
 interface DuplicatesResponse {
@@ -44,6 +47,22 @@ interface PropertiesResponse {
   properties: HubspotProperty[];
   grouped: Record<string, HubspotProperty[]>;
   totalCount: number;
+}
+
+interface JobSummary {
+  jobId: string;
+  status: "pending" | "scraping" | "completed" | "failed";
+  progress: {
+    currentPage: number;
+    totalPages: number;
+    companiesScraped: number;
+    totalCompanies: number;
+  };
+  startedAt: number;
+  completedAt?: number;
+  error?: string;
+  sourceUrl: string;
+  companyCount: number;
 }
 
 // Default field mapping suggestions
@@ -91,6 +110,11 @@ export default function HubspotImporterPage() {
   // Import step
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+
+  // Jobs list
+  const [jobsList, setJobsList] = useState<JobSummary[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [showJobsList, setShowJobsList] = useState(false);
 
   // Get companies to import (filtered by confirmed duplicates)
   const companiesToImport =
@@ -307,6 +331,69 @@ export default function HubspotImporterPage() {
     } finally {
       setImportLoading(false);
     }
+  };
+
+  // Fetch all jobs
+  const fetchJobs = async () => {
+    setJobsLoading(true);
+    try {
+      const response = await fetch("/api/scrape/jobs");
+      const data = await response.json();
+      if (data.error) {
+        console.error("Error fetching jobs:", data.error);
+      } else {
+        setJobsList(data);
+      }
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  // Load a specific job
+  const loadJob = async (jobId: string) => {
+    try {
+      const response = await fetch(`/api/scrape/status/${jobId}`);
+      const data: ScrapeStatus = await response.json();
+
+      if (data.error) {
+        console.error("Error loading job:", data.error);
+        return;
+      }
+
+      setScrapeStatus(data);
+      setUrl(data.sourceUrl || "");
+      setCurrentStep("scraping");
+
+      // If job is completed, allow user to proceed
+      if (data.status === "completed") {
+        // User can proceed to duplicates step
+      } else if (data.status === "scraping" || data.status === "pending") {
+        // Continue polling
+        pollScrapeStatus(jobId);
+      }
+    } catch (error) {
+      console.error("Error loading job:", error);
+    }
+  };
+
+  // Format date
+  const formatDate = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+  };
+
+  // Format duration
+  const formatDuration = (startedAt: number, completedAt?: number): string => {
+    const end = completedAt || Date.now();
+    const duration = Math.floor((end - startedAt) / 1000);
+    if (duration < 60) {
+      return `${duration}s`;
+    }
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    return `${minutes}m ${seconds}s`;
   };
 
   // Reset and start over
@@ -1044,6 +1131,164 @@ export default function HubspotImporterPage() {
           ) : null}
         </div>
       )}
+
+      {/* Previous Jobs Section */}
+      <div className="card" style={{ marginTop: "48px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: showJobsList ? "16px" : "0",
+          }}
+        >
+          <h2 style={{ margin: 0 }}>Previous Jobs</h2>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {showJobsList && (
+              <button
+                className="btn btn-secondary"
+                onClick={fetchJobs}
+                disabled={jobsLoading}
+                style={{ fontSize: "0.875rem", padding: "6px 12px" }}
+              >
+                {jobsLoading ? (
+                  <span
+                    className="loading-spinner"
+                    style={{ width: "16px", height: "16px" }}
+                  />
+                ) : (
+                  "Refresh"
+                )}
+              </button>
+            )}
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setShowJobsList(!showJobsList);
+                if (!showJobsList) {
+                  fetchJobs();
+                }
+              }}
+              style={{ fontSize: "0.875rem", padding: "6px 12px" }}
+            >
+              {showJobsList ? "Hide" : "Show"} Jobs
+            </button>
+          </div>
+        </div>
+
+        {showJobsList && (
+          <div>
+            {jobsLoading && jobsList.length === 0 ? (
+              <div className="loading-overlay" style={{ minHeight: "100px" }}>
+                <div className="loading-spinner" />
+                <p>Loading jobs...</p>
+              </div>
+            ) : jobsList.length === 0 ? (
+              <p
+                style={{ color: "var(--text-secondary)", textAlign: "center" }}
+              >
+                No jobs found. Start a new import to create your first job.
+              </p>
+            ) : (
+              <div className="table-container" style={{ maxHeight: "400px" }}>
+                <table className="company-table">
+                  <thead>
+                    <tr>
+                      <th>Job ID</th>
+                      <th>Status</th>
+                      <th>Source URL</th>
+                      <th>Companies</th>
+                      <th>Progress</th>
+                      <th>Started</th>
+                      <th>Duration</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobsList.map((job) => (
+                      <tr key={job.jobId}>
+                        <td>
+                          <code
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            {job.jobId}
+                          </code>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              job.status === "completed"
+                                ? "badge-success"
+                                : job.status === "failed"
+                                ? "badge-error"
+                                : job.status === "scraping"
+                                ? "badge-warning"
+                                : ""
+                            }`}
+                          >
+                            {job.status.charAt(0).toUpperCase() +
+                              job.status.slice(1)}
+                          </span>
+                        </td>
+                        <td>
+                          <a
+                            href={job.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="link"
+                            style={{
+                              maxWidth: "200px",
+                              display: "inline-block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {job.sourceUrl}
+                          </a>
+                        </td>
+                        <td>{job.companyCount.toLocaleString()}</td>
+                        <td>
+                          {job.status === "completed"
+                            ? "100%"
+                            : job.status === "failed"
+                            ? "Failed"
+                            : `${Math.round(
+                                (job.progress.companiesScraped /
+                                  Math.max(1, job.progress.totalCompanies)) *
+                                  100
+                              )}%`}
+                        </td>
+                        <td style={{ fontSize: "0.875rem" }}>
+                          {formatDate(job.startedAt)}
+                        </td>
+                        <td style={{ fontSize: "0.875rem" }}>
+                          {formatDuration(job.startedAt, job.completedAt)}
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => loadJob(job.jobId)}
+                            style={{
+                              fontSize: "0.75rem",
+                              padding: "4px 8px",
+                            }}
+                          >
+                            Load
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
