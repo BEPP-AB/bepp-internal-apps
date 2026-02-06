@@ -1949,6 +1949,39 @@ export default function HubspotImporterPage() {
                           );
                         });
                       })()}
+                      {/* Status field - always fixed to "1. Not contacted" */}
+                      <tr
+                        style={{
+                          backgroundColor: "var(--bg-input)",
+                        }}
+                      >
+                        <td>Status</td>
+                        <td>
+                          <select
+                            value="1. Not contacted"
+                            disabled
+                            style={{
+                              opacity: 0.7,
+                              cursor: "not-allowed",
+                            }}
+                          >
+                            <option value="1. Not contacted">
+                              1. Not contacted
+                            </option>
+                          </select>
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              color: "var(--text-secondary)",
+                              fontSize: "0.875rem",
+                              fontStyle: "italic",
+                            }}
+                          >
+                            Fixed
+                          </span>
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
 
@@ -2102,6 +2135,13 @@ export default function HubspotImporterPage() {
                               isMapped: true,
                             });
                           }
+
+                          // Add Status field (always set to "1. Not contacted")
+                          previewData.push({
+                            hubspotProperty: getPropertyLabel("status"),
+                            value: "1. Not contacted",
+                            isMapped: true,
+                          });
 
                           if (previewData.length === 0) {
                             return (

@@ -408,6 +408,9 @@ export async function batchCreateCompanies(
         properties[fieldMapping.allabolagUrl] = company.allabolagUrl;
       }
 
+      // Always set status to "Not contacted" (internal name: "1. Not contacted")
+      properties.status = "1. Not contacted";
+
       // Set Source field if jobId is provided
       if (jobId) {
         properties.kalla = `bepp-hubspot-importer-${jobId}`;
@@ -458,6 +461,9 @@ export async function batchCreateCompanies(
           if (fieldMapping.allabolagUrl && company.allabolagUrl) {
             properties[fieldMapping.allabolagUrl] = company.allabolagUrl;
           }
+
+          // Always set status to "Not contacted" (internal name: "1. Not contacted")
+          properties.status = "1. Not contacted";
 
           // Set Source field if jobId is provided
           if (jobId) {
