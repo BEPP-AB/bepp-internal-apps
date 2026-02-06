@@ -361,14 +361,30 @@ export default function Home() {
   const handleCopySignature = async (signature: SavedSignature) => {
     const html = signature.html;
     try {
-      // Try modern Clipboard API with HTML format
+      // Try modern Clipboard API with both HTML and plain text formats
+      // This allows pasting into both rich text editors (Gmail) and plain text editors (HubSpot)
       if (navigator.clipboard && window.ClipboardItem) {
-        const blob = new Blob([html], { type: "text/html" });
-        const clipboardItem = new ClipboardItem({ "text/html": blob });
+        const htmlBlob = new Blob([html], { type: "text/html" });
+        const textBlob = new Blob([html], { type: "text/plain" });
+        const clipboardItem = new ClipboardItem({
+          "text/html": htmlBlob,
+          "text/plain": textBlob,
+        });
         await navigator.clipboard.write([clipboardItem]);
         showToast("Signature copied to clipboard!");
       } else {
-        // Fallback: Create temporary div with HTML content and copy it
+        // Fallback: Copy as plain text (raw HTML source)
+        // This works for HubSpot and other systems that need raw HTML
+        await navigator.clipboard.writeText(html);
+        showToast("Signature copied to clipboard!");
+      }
+    } catch {
+      // Fallback: Copy as plain text (raw HTML source)
+      try {
+        await navigator.clipboard.writeText(html);
+        showToast("Signature copied to clipboard!");
+      } catch {
+        // Final fallback: Create temporary div with HTML content and copy it
         // This preserves HTML formatting when pasting into email clients
         const tempDiv = document.createElement("div");
         tempDiv.style.position = "fixed";
@@ -387,38 +403,12 @@ export default function Home() {
           document.execCommand("copy");
           showToast("Signature copied to clipboard!");
         } catch {
-          // Final fallback: copy as plain text
-          await navigator.clipboard.writeText(html);
-          showToast("Signature copied to clipboard!");
+          showToast("Failed to copy signature. Please try again.");
         }
 
         selection?.removeAllRanges();
         document.body.removeChild(tempDiv);
       }
-    } catch {
-      // Fallback for older browsers or if Clipboard API fails
-      const tempDiv = document.createElement("div");
-      tempDiv.style.position = "fixed";
-      tempDiv.style.left = "-9999px";
-      tempDiv.style.top = "-9999px";
-      tempDiv.innerHTML = html;
-      document.body.appendChild(tempDiv);
-
-      const range = document.createRange();
-      range.selectNodeContents(tempDiv);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-
-      try {
-        document.execCommand("copy");
-        showToast("Signature copied to clipboard!");
-      } catch {
-        showToast("Failed to copy signature. Please try again.");
-      }
-
-      selection?.removeAllRanges();
-      document.body.removeChild(tempDiv);
     }
   };
 
