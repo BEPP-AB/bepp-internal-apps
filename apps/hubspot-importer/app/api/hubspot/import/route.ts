@@ -5,6 +5,7 @@ import {
   createJobFilteredView,
 } from "@/src/services/hubspot-client";
 import { ScrapedCompany, FieldMapping } from "@/src/types/company";
+import { loadJob, saveJob } from "@/src/services/job-storage";
 
 interface ImportRequest {
   companies: ScrapedCompany[];
@@ -86,6 +87,21 @@ export async function POST(request: NextRequest) {
         console.error("Error creating filtered view:", error);
         // Don't fail the import if view creation fails
         result.viewId = null;
+      }
+
+      // Update job status to "import complete" after successful import
+      try {
+        const job = await loadJob(body.jobId);
+        if (job) {
+          await saveJob({
+            ...job,
+            status: "import complete",
+            completedAt: Date.now(),
+          });
+        }
+      } catch (error) {
+        console.error("Error updating job status:", error);
+        // Don't fail the import if status update fails
       }
     }
 

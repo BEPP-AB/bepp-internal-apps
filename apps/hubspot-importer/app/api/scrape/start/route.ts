@@ -92,10 +92,10 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // Mark job as completed after loop finishes
+        // Mark job as scrape complete after loop finishes
         await saveJob({
           ...job,
-          status: "completed",
+          status: "scrape complete",
           completedAt: Date.now(),
           progress: finalProgress,
           companies: finalCompanies,

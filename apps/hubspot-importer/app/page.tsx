@@ -30,7 +30,12 @@ type ViewMode = "import" | "previous" | "enrich";
 
 interface ScrapeStatus {
   jobId: string;
-  status: "pending" | "scraping" | "completed" | "failed";
+  status:
+    | "pending"
+    | "scraping"
+    | "scrape complete"
+    | "import complete"
+    | "failed";
   progress: {
     currentPage: number;
     totalPages: number;
@@ -62,7 +67,12 @@ interface PropertiesResponse {
 
 interface JobSummary {
   jobId: string;
-  status: "pending" | "scraping" | "completed" | "failed";
+  status:
+    | "pending"
+    | "scraping"
+    | "scrape complete"
+    | "import complete"
+    | "failed";
   progress: {
     currentPage: number;
     totalPages: number;
@@ -491,8 +501,11 @@ export default function HubspotImporterPage() {
       setUrl(data.sourceUrl || "");
       setCurrentStep("scraping");
 
-      // If job is completed, allow user to proceed
-      if (data.status === "completed") {
+      // If job is scrape complete or import complete, allow user to proceed
+      if (
+        data.status === "scrape complete" ||
+        data.status === "import complete"
+      ) {
         // User can proceed to duplicates step
       } else if (data.status === "scraping" || data.status === "pending") {
         // Continue polling
@@ -1336,7 +1349,9 @@ export default function HubspotImporterPage() {
                     </div>
                     <div className="stat-item">
                       <div className="stat-value">
-                        {scrapeStatus.status === "completed" ? (
+                        {scrapeStatus.status === "scrape complete" ? (
+                          <span style={{ color: "#ff9500" }}>✓</span>
+                        ) : scrapeStatus.status === "import complete" ? (
                           <span style={{ color: "var(--success)" }}>✓</span>
                         ) : scrapeStatus.status === "failed" ? (
                           <span style={{ color: "var(--error)" }}>✗</span>
@@ -1351,8 +1366,10 @@ export default function HubspotImporterPage() {
                         )}
                       </div>
                       <div className="stat-label">
-                        {scrapeStatus.status === "completed"
-                          ? "Complete"
+                        {scrapeStatus.status === "scrape complete"
+                          ? "Scrape Complete"
+                          : scrapeStatus.status === "import complete"
+                          ? "Import Complete"
                           : scrapeStatus.status === "failed"
                           ? "Failed"
                           : ""}
@@ -1440,7 +1457,8 @@ export default function HubspotImporterPage() {
                     </div>
                   </div>
 
-                  {scrapeStatus.status === "completed" && (
+                  {(scrapeStatus.status === "scrape complete" ||
+                    scrapeStatus.status === "import complete") && (
                     <div className="action-bar">
                       <button className="btn btn-secondary" onClick={resetAll}>
                         Start Over
@@ -2426,17 +2444,28 @@ export default function HubspotImporterPage() {
                       <td>
                         <span
                           className={`badge ${
-                            job.status === "completed"
+                            job.status === "import complete"
                               ? "badge-success"
+                              : job.status === "scrape complete"
+                              ? "badge-warning"
                               : job.status === "failed"
                               ? "badge-error"
                               : job.status === "scraping"
                               ? "badge-warning"
                               : ""
                           }`}
+                          style={
+                            job.status === "scrape complete"
+                              ? { backgroundColor: "#ff9500", color: "#fff" }
+                              : undefined
+                          }
                         >
-                          {job.status.charAt(0).toUpperCase() +
-                            job.status.slice(1)}
+                          {job.status === "scrape complete"
+                            ? "Scrape Complete"
+                            : job.status === "import complete"
+                            ? "Import Complete"
+                            : job.status.charAt(0).toUpperCase() +
+                              job.status.slice(1)}
                         </span>
                       </td>
                       <td>
@@ -2458,7 +2487,8 @@ export default function HubspotImporterPage() {
                       </td>
                       <td>{job.companyCount.toLocaleString()}</td>
                       <td>
-                        {job.status === "completed"
+                        {job.status === "scrape complete" ||
+                        job.status === "import complete"
                           ? "100%"
                           : job.status === "failed"
                           ? "Failed"
@@ -2486,7 +2516,7 @@ export default function HubspotImporterPage() {
                             padding: "6px 12px",
                           }}
                         >
-                          Load & Continue
+                          Load
                         </button>
                       </td>
                     </tr>
