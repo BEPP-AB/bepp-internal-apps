@@ -54,19 +54,26 @@ function stringSimilarity(str1: string, str2: string): number {
 
 /**
  * Normalize company name for comparison
- * Removes common suffixes and normalizes whitespace
+ * Removes common prefixes, suffixes and normalizes whitespace
  */
 function normalizeCompanyName(name: string): string {
   return (
     name
       .toLowerCase()
-      // Remove common Swedish company suffixes
+      // Remove common Swedish company prefixes (e.g., "aktiebolaget falu plast")
       .replace(
-        /\s*(ab|aktiebolag|hb|handelsbolag|kb|kommanditbolag|ef|ek\s*för\.?|enskild\s*firma)\s*$/i,
+        /^(aktiebolaget|aktiebolag|handelsbolaget|handelsbolag|kommanditbolaget|kommanditbolag|enskilda\s*firman|enskild\s*firman)\s+/i,
         ""
       )
-      // Remove common business type indicators
-      .replace(/\s*(inc\.?|ltd\.?|llc\.?|gmbh|co\.?|corp\.?)\s*$/i, "")
+      // Remove common Swedish company suffixes
+      .replace(
+        /\s+(ab|aktiebolag|aktiebolaget|hb|handelsbolag|handelsbolaget|kb|kommanditbolag|kommanditbolaget|ef|ek\s*för\.?|enskild\s*firma|enskilda\s*firman)\s*$/i,
+        ""
+      )
+      // Remove common business type indicators (prefixes)
+      .replace(/^(inc\.?|ltd\.?|llc\.?|gmbh|co\.?|corp\.?)\s+/i, "")
+      // Remove common business type indicators (suffixes)
+      .replace(/\s+(inc\.?|ltd\.?|llc\.?|gmbh|co\.?|corp\.?)\s*$/i, "")
       // Normalize whitespace
       .replace(/\s+/g, " ")
       .trim()
