@@ -91,7 +91,6 @@ export function normalizeOrgNumber(orgNumber: string): string {
   return String(orgNumber).trim().replace(/\D/g, "");
 }
 
-// Similarity threshold for name matching (75%)
 const NAME_SIMILARITY_THRESHOLD = 0.75;
 
 /**

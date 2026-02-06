@@ -265,12 +265,12 @@ export default function HubspotImporterPage() {
 
       // Pre-select duplicates to skip by default:
       // - All org_number matches (most reliable)
-      // - Name similarity matches with similarity > 0.85
+      // - Name similarity matches with similarity >= 0.9
       const confirmed = new Set<string>();
       data.duplicates.forEach((d) => {
         const shouldCheck =
           d.matchType === "org_number" ||
-          (d.matchType === "name_similarity" && (d.similarity ?? 0) > 0.85);
+          (d.matchType === "name_similarity" && (d.similarity ?? 0) >= 0.9);
         if (shouldCheck) {
           confirmed.add(normalizeOrgNumber(d.scrapedCompany.orgNumber));
         }
@@ -1511,7 +1511,7 @@ export default function HubspotImporterPage() {
 
                       <div
                         className="table-container"
-                        style={{ maxHeight: "400px", marginTop: "16px" }}
+                        style={{ maxHeight: "800px", marginTop: "16px" }}
                       >
                         <table className="company-table">
                           <thead style={{ background: "#f8f9fb", opacity: 1 }}>
