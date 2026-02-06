@@ -2456,7 +2456,11 @@ export default function HubspotImporterPage() {
                           }`}
                           style={
                             job.status === "scrape complete"
-                              ? { backgroundColor: "#ff9500", color: "#fff", whiteSpace: "nowrap" }
+                              ? {
+                                  backgroundColor: "#ff9500",
+                                  color: "#fff",
+                                  whiteSpace: "nowrap",
+                                }
                               : { whiteSpace: "nowrap" }
                           }
                         >
@@ -2516,7 +2520,7 @@ export default function HubspotImporterPage() {
                             padding: "6px 12px",
                           }}
                         >
-                          Load
+                          Import
                         </button>
                       </td>
                     </tr>
