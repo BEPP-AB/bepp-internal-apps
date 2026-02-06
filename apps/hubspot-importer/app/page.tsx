@@ -2456,8 +2456,8 @@ export default function HubspotImporterPage() {
                           }`}
                           style={
                             job.status === "scrape complete"
-                              ? { backgroundColor: "#ff9500", color: "#fff" }
-                              : undefined
+                              ? { backgroundColor: "#ff9500", color: "#fff", whiteSpace: "nowrap" }
+                              : { whiteSpace: "nowrap" }
                           }
                         >
                           {job.status === "scrape complete"
