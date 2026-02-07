@@ -359,6 +359,93 @@ export async function ensureDropdownOption(
   }
 }
 
+// HubSpot properties that expect integer/number values
+const INTEGER_PROPERTIES = new Set([
+  "numberofemployees",
+  "annualrevenue",
+  "number_of_employees",
+  "num_associated_contacts",
+  "num_associated_deals",
+]);
+
+/**
+ * Sanitize a value for a HubSpot property.
+ * Handles range strings (e.g. "50-99") for integer properties by using
+ * the midpoint, and strips non-numeric characters from number fields.
+ */
+function sanitizePropertyValue(
+  propertyName: string,
+  value: string,
+): string {
+  if (!INTEGER_PROPERTIES.has(propertyName)) {
+    return value;
+  }
+
+  // Handle range strings like "50-99", "100-199", "1-4"
+  const rangeMatch = value.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+  if (rangeMatch) {
+    const low = parseInt(rangeMatch[1], 10);
+    const high = parseInt(rangeMatch[2], 10);
+    // Use the midpoint of the range, rounded down
+    return Math.floor((low + high) / 2).toString();
+  }
+
+  // Handle values with suffixes like "10000tkr" or "1 000 000"
+  // Strip all non-digit characters and try to parse
+  const digitsOnly = value.replace(/[^\d]/g, "");
+  if (digitsOnly && !isNaN(parseInt(digitsOnly, 10))) {
+    return digitsOnly;
+  }
+
+  // If we can't parse it at all, return empty to skip the field
+  // rather than sending an invalid value
+  return "";
+}
+
+/**
+ * Build HubSpot properties from a scraped company and field mapping,
+ * sanitizing values for type compatibility.
+ */
+function buildProperties(
+  company: ScrapedCompany,
+  fieldMapping: FieldMapping,
+  jobId?: string,
+): Record<string, string> {
+  const properties: Record<string, string> = {};
+
+  const mappings: Array<{
+    mappedProp: string | undefined;
+    value: string | null | undefined;
+  }> = [
+    { mappedProp: fieldMapping.organizationName, value: company.organizationName },
+    { mappedProp: fieldMapping.orgNumber, value: company.orgNumber },
+    { mappedProp: fieldMapping.zipCode, value: company.zipCode },
+    { mappedProp: fieldMapping.city, value: company.city },
+    { mappedProp: fieldMapping.revenue, value: company.revenue },
+    { mappedProp: fieldMapping.employees, value: company.employees },
+    { mappedProp: fieldMapping.allabolagUrl, value: company.allabolagUrl },
+  ];
+
+  for (const { mappedProp, value } of mappings) {
+    if (mappedProp && value) {
+      const sanitized = sanitizePropertyValue(mappedProp, value);
+      if (sanitized) {
+        properties[mappedProp] = sanitized;
+      }
+    }
+  }
+
+  // Always set status to "Not contacted" (internal name: "1. Not contacted")
+  properties.status = "1. Not contacted";
+
+  // Set Source field if jobId is provided
+  if (jobId) {
+    properties.kalla = `bepp-hubspot-importer-${jobId}`;
+  }
+
+  return properties;
+}
+
 /**
  * Batch create companies in Hubspot
  */
@@ -383,39 +470,7 @@ export async function batchCreateCompanies(
     const batch = companies.slice(i, i + batchSize);
 
     const inputs = batch.map((company) => {
-      const properties: Record<string, string> = {};
-
-      // Map fields according to user configuration
-      if (fieldMapping.organizationName && company.organizationName) {
-        properties[fieldMapping.organizationName] = company.organizationName;
-      }
-      if (fieldMapping.orgNumber && company.orgNumber) {
-        properties[fieldMapping.orgNumber] = company.orgNumber;
-      }
-      if (fieldMapping.zipCode && company.zipCode) {
-        properties[fieldMapping.zipCode] = company.zipCode;
-      }
-      if (fieldMapping.city && company.city) {
-        properties[fieldMapping.city] = company.city;
-      }
-      if (fieldMapping.revenue && company.revenue) {
-        properties[fieldMapping.revenue] = company.revenue;
-      }
-      if (fieldMapping.employees && company.employees) {
-        properties[fieldMapping.employees] = company.employees;
-      }
-      if (fieldMapping.allabolagUrl && company.allabolagUrl) {
-        properties[fieldMapping.allabolagUrl] = company.allabolagUrl;
-      }
-
-      // Always set status to "Not contacted" (internal name: "1. Not contacted")
-      properties.status = "1. Not contacted";
-
-      // Set Source field if jobId is provided
-      if (jobId) {
-        properties.kalla = `bepp-hubspot-importer-${jobId}`;
-      }
-
+      const properties = buildProperties(company, fieldMapping, jobId);
       return { properties, associations: [] };
     });
 
@@ -474,39 +529,7 @@ export async function batchCreateCompanies(
       // Try individual creates for this batch
       for (const company of batch) {
         try {
-          const properties: Record<string, string> = {};
-
-          if (fieldMapping.organizationName && company.organizationName) {
-            properties[fieldMapping.organizationName] =
-              company.organizationName;
-          }
-          if (fieldMapping.orgNumber && company.orgNumber) {
-            properties[fieldMapping.orgNumber] = company.orgNumber;
-          }
-          if (fieldMapping.zipCode && company.zipCode) {
-            properties[fieldMapping.zipCode] = company.zipCode;
-          }
-          if (fieldMapping.city && company.city) {
-            properties[fieldMapping.city] = company.city;
-          }
-          if (fieldMapping.revenue && company.revenue) {
-            properties[fieldMapping.revenue] = company.revenue;
-          }
-          if (fieldMapping.employees && company.employees) {
-            properties[fieldMapping.employees] = company.employees;
-          }
-          if (fieldMapping.allabolagUrl && company.allabolagUrl) {
-            properties[fieldMapping.allabolagUrl] = company.allabolagUrl;
-          }
-
-          // Always set status to "Not contacted" (internal name: "1. Not contacted")
-          properties.status = "1. Not contacted";
-
-          // Set Source field if jobId is provided
-          if (jobId) {
-            properties.kalla = `bepp-hubspot-importer-${jobId}`;
-          }
-
+          const properties = buildProperties(company, fieldMapping, jobId);
           const created = await createCompany(properties);
           results.created++;
           results.createdIds.push(created.id);

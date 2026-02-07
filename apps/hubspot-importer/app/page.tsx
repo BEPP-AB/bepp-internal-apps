@@ -1357,7 +1357,7 @@ export default function HubspotImporterPage() {
                         ) : scrapeStatus.status === "import complete" ? (
                           <span style={{ color: "var(--success)" }}>✓</span>
                         ) : scrapeStatus.status === "partial import" ? (
-                          <span style={{ color: "var(--warning)" }}>⚠</span>
+                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>⚠</span>
                         ) : scrapeStatus.status === "failed" ? (
                           <span style={{ color: "var(--error)" }}>✗</span>
                         ) : (
@@ -2473,9 +2473,11 @@ export default function HubspotImporterPage() {
                                 }
                               : job.status === "partial import"
                                 ? {
-                                    backgroundColor: "var(--warning)",
+                                    backgroundColor: "#f59e0b",
                                     color: "#fff",
                                     whiteSpace: "nowrap",
+                                    fontWeight: 600,
+                                    boxShadow: "0 2px 4px rgba(245, 158, 11, 0.3)",
                                   }
                                 : { whiteSpace: "nowrap" }
                           }
