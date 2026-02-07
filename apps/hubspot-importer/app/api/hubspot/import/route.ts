@@ -20,14 +20,14 @@ export async function POST(request: NextRequest) {
     if (!body.companies || !Array.isArray(body.companies)) {
       return NextResponse.json(
         { error: "Companies array is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!body.fieldMapping) {
       return NextResponse.json(
         { error: "Field mapping is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -43,13 +43,13 @@ export async function POST(request: NextRequest) {
 
     // Validate that at least one field is mapped
     const hasValidMapping = Object.values(body.fieldMapping).some(
-      (v) => v && v.trim() !== ""
+      (v) => v && v.trim() !== "",
     );
 
     if (!hasValidMapping) {
       return NextResponse.json(
         { error: "At least one field must be mapped" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
               error instanceof Error ? error.message : "Unknown error"
             }`,
           },
-          { status: 500 }
+          { status: 500 },
         );
       }
     }
@@ -75,11 +75,11 @@ export async function POST(request: NextRequest) {
     const result = await batchCreateCompanies(
       body.companies,
       body.fieldMapping,
-      body.jobId
+      body.jobId,
     );
 
-    // Create a filtered view for this job if jobId is provided
-    if (body.jobId && result.success) {
+    // Create a filtered view for this job if jobId is provided and at least one company was created
+    if (body.jobId && result.created > 0) {
       try {
         const viewId = await createJobFilteredView(body.jobId);
         result.viewId = viewId;
@@ -88,14 +88,23 @@ export async function POST(request: NextRequest) {
         // Don't fail the import if view creation fails
         result.viewId = null;
       }
+    }
 
-      // Update job status to "import complete" after successful import
+    // Update job status after import attempt
+    if (body.jobId) {
       try {
         const job = await loadJob(body.jobId);
         if (job) {
+          const jobStatus =
+            result.success
+              ? "import complete"
+              : result.created > 0
+              ? "partial import"
+              : "failed";
+
           await saveJob({
             ...job,
-            status: "import complete",
+            status: jobStatus,
             completedAt: Date.now(),
           });
         }
@@ -113,7 +122,7 @@ export async function POST(request: NextRequest) {
         error:
           error instanceof Error ? error.message : "Failed to import companies",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

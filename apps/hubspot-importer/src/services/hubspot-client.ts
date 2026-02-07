@@ -61,7 +61,7 @@ export async function searchCompanies(
     name?: string;
     domain?: string;
   },
-  properties: string[] = ["name", "domain"]
+  properties: string[] = ["name", "domain"],
 ): Promise<HubspotCompany[]> {
   const client = getHubspotClient();
 
@@ -134,7 +134,7 @@ export async function searchCompanies(
  * Used for duplicate detection
  */
 export async function getAllCompanies(
-  properties: string[] = ["name", "domain", "org_number"]
+  properties: string[] = ["name", "domain", "org_number"],
 ): Promise<HubspotCompany[]> {
   const client = getHubspotClient();
   const allCompanies: HubspotCompany[] = [];
@@ -145,7 +145,7 @@ export async function getAllCompanies(
       const response = await client.crm.companies.basicApi.getPage(
         100, // limit
         after, // after cursor
-        properties
+        properties,
       );
 
       for (const company of response.results) {
@@ -171,7 +171,7 @@ export async function getAllCompanies(
  * Create a single company in Hubspot
  */
 export async function createCompany(
-  properties: Record<string, string>
+  properties: Record<string, string>,
 ): Promise<HubspotCompany> {
   const client = getHubspotClient();
 
@@ -200,7 +200,7 @@ export async function createCompany(
 export async function ensureDropdownOption(
   propertyName: string,
   optionValue: string,
-  optionLabel: string
+  optionLabel: string,
 ): Promise<void> {
   const client = getHubspotClient();
 
@@ -208,13 +208,13 @@ export async function ensureDropdownOption(
     // Get the property to check existing options
     const property = await client.crm.properties.coreApi.getByName(
       "company",
-      propertyName
+      propertyName,
     );
 
     // Verify it's a dropdown/select property
     if (property.fieldType !== "select" && property.type !== "enumeration") {
       throw new Error(
-        `Property ${propertyName} is not a dropdown/select property`
+        `Property ${propertyName} is not a dropdown/select property`,
       );
     }
 
@@ -224,7 +224,7 @@ export async function ensureDropdownOption(
     if (modificationMetadata?.readOnlyOptions === true) {
       throw new Error(
         `Property ${propertyName} has read-only options and cannot be modified via API. ` +
-          `Please add the option "${optionValue}" manually in HubSpot settings.`
+          `Please add the option "${optionValue}" manually in HubSpot settings.`,
       );
     }
 
@@ -232,12 +232,12 @@ export async function ensureDropdownOption(
     const existingOptions = property.options || [];
     const optionExists = existingOptions.some(
       (opt: { value: string; label?: string }) =>
-        opt.value === optionValue || opt.label === optionLabel
+        opt.value === optionValue || opt.label === optionLabel,
     );
 
     if (optionExists) {
       console.log(
-        `Option ${optionValue} already exists for property ${propertyName}`
+        `Option ${optionValue} already exists for property ${propertyName}`,
       );
       return; // Option already exists, no need to create
     }
@@ -247,8 +247,8 @@ export async function ensureDropdownOption(
       existingOptions.length > 0
         ? Math.max(
             ...existingOptions.map(
-              (opt: { displayOrder?: number }) => opt.displayOrder || 0
-            )
+              (opt: { displayOrder?: number }) => opt.displayOrder || 0,
+            ),
           )
         : 0;
 
@@ -266,7 +266,7 @@ export async function ensureDropdownOption(
         displayOrder: opt.displayOrder ?? 0,
         hidden: opt.hidden ?? false,
         description: opt.description,
-      })
+      }),
     );
 
     // Add the new option
@@ -280,7 +280,7 @@ export async function ensureDropdownOption(
     const updatedOptions = [...preservedOptions, newOption];
 
     console.log(
-      `Adding option ${optionValue} to property ${propertyName}. Total options: ${updatedOptions.length}`
+      `Adding option ${optionValue} to property ${propertyName}. Total options: ${updatedOptions.length}`,
     );
 
     // Update the property with the new option
@@ -298,7 +298,7 @@ export async function ensureDropdownOption(
           : String(updateError);
       console.error(
         `Failed to update property ${propertyName} with new option:`,
-        errorMessage
+        errorMessage,
       );
 
       // Check if it's a permissions error
@@ -310,7 +310,7 @@ export async function ensureDropdownOption(
         throw new Error(
           `Permission denied: Cannot modify property ${propertyName}. ` +
             `The API token may not have permission to update properties. ` +
-            `Please ensure the token has 'properties' scope.`
+            `Please ensure the token has 'properties' scope.`,
         );
       }
 
@@ -321,7 +321,7 @@ export async function ensureDropdownOption(
       ) {
         throw new Error(
           `Property ${propertyName} is read-only and cannot be modified via API. ` +
-            `Please add the option manually in HubSpot settings.`
+            `Please add the option manually in HubSpot settings.`,
         );
       }
 
@@ -334,24 +334,24 @@ export async function ensureDropdownOption(
     // Verify the option was created by fetching the property again
     const updatedProperty = await client.crm.properties.coreApi.getByName(
       "company",
-      propertyName
+      propertyName,
     );
     const optionStillMissing = !updatedProperty.options?.some(
-      (opt: { value: string }) => opt.value === optionValue
+      (opt: { value: string }) => opt.value === optionValue,
     );
 
     if (optionStillMissing) {
       console.error(
         `Failed to verify option creation. Existing options:`,
-        updatedProperty.options?.map((opt: { value: string }) => opt.value)
+        updatedProperty.options?.map((opt: { value: string }) => opt.value),
       );
       throw new Error(
-        `Failed to create dropdown option ${optionValue} for property ${propertyName}. The option was not found after creation.`
+        `Failed to create dropdown option ${optionValue} for property ${propertyName}. The option was not found after creation.`,
       );
     }
 
     console.log(
-      `Successfully created option ${optionValue} for property ${propertyName}`
+      `Successfully created option ${optionValue} for property ${propertyName}`,
     );
   } catch (error) {
     console.error(`Error ensuring dropdown option for ${propertyName}:`, error);
@@ -365,7 +365,7 @@ export async function ensureDropdownOption(
 export async function batchCreateCompanies(
   companies: ScrapedCompany[],
   fieldMapping: FieldMapping,
-  jobId?: string
+  jobId?: string,
 ): Promise<ImportResult> {
   const client = getHubspotClient();
   const results: ImportResult = {
@@ -420,16 +420,53 @@ export async function batchCreateCompanies(
     });
 
     try {
-      const response = await client.crm.companies.batchApi.create({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const response: any = await client.crm.companies.batchApi.create({
         inputs,
       });
 
       results.created += response.results.length;
-      results.createdIds.push(...response.results.map((r) => r.id));
+      results.createdIds.push(...response.results.map((r: { id: string }) => r.id));
 
-      // Check for any partial failures
-      if (response.results.length < batch.length) {
-        results.failed += batch.length - response.results.length;
+      // HubSpot batch API can return BatchResponseSimplePublicObjectWithErrors
+      // which includes both successful results and per-item errors
+      if (response.numErrors && response.numErrors > 0 && response.errors) {
+        const batchErrors = response.errors as Array<{
+          message: string;
+          context?: { ids?: string[] };
+        }>;
+
+        for (const batchError of batchErrors) {
+          // Each error may reference specific items via context.ids
+          const failedCount = batchError.context?.ids?.length || 1;
+          results.failed += failedCount;
+
+          // Try to match error back to specific companies using context
+          const failedIds = batchError.context?.ids || [];
+          if (failedIds.length > 0) {
+            for (const failedIdx of failedIds) {
+              const companyIndex = parseInt(failedIdx, 10);
+              const failedCompany = !isNaN(companyIndex) ? batch[companyIndex] : undefined;
+              results.errors.push({
+                company: failedCompany || batch[0],
+                error: batchError.message || "Unknown batch error",
+              });
+            }
+          } else {
+            results.errors.push({
+              company: batch[0],
+              error: batchError.message || "Unknown batch error",
+            });
+          }
+        }
+      } else if (response.results.length < batch.length) {
+        // Fewer results than inputs but no explicit errors reported
+        const unaccountedFailures = batch.length - response.results.length;
+        results.failed += unaccountedFailures;
+        results.errors.push({
+          company: batch[0],
+          error: `${unaccountedFailures} company/companies failed in batch without specific error details`,
+        });
       }
     } catch (error) {
       console.error(`Batch create error (batch ${i / batchSize + 1}):`, error);
@@ -501,7 +538,7 @@ export async function batchCreateCompanies(
  * Returns the view ID that can be used in HubSpot URLs
  */
 export async function createJobFilteredView(
-  jobId: string
+  jobId: string,
 ): Promise<string | null> {
   const client = getHubspotClient();
   const sourceValue = `bepp-hubspot-importer-${jobId}`;
@@ -542,7 +579,7 @@ export async function createJobFilteredView(
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response: any = await (client.crm.lists.listsApi.create as any)(
-      requestBody
+      requestBody,
     );
 
     // Response structure: response.list.listId (according to API docs)
@@ -569,7 +606,7 @@ export async function createJobFilteredView(
  */
 export async function updateCompany(
   companyId: string,
-  properties: Record<string, string>
+  properties: Record<string, string>,
 ): Promise<HubspotCompany> {
   const client = getHubspotClient();
 
@@ -594,7 +631,7 @@ export async function updateCompany(
  * Batch update companies in Hubspot
  */
 export async function batchUpdateCompanies(
-  updates: Array<{ id: string; properties: Record<string, string> }>
+  updates: Array<{ id: string; properties: Record<string, string> }>,
 ): Promise<{ success: number; failed: number }> {
   const client = getHubspotClient();
   const results = { success: 0, failed: 0 };

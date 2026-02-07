@@ -35,6 +35,7 @@ interface ScrapeStatus {
     | "scraping"
     | "scrape complete"
     | "import complete"
+    | "partial import"
     | "failed";
   progress: {
     currentPage: number;
@@ -72,6 +73,7 @@ interface JobSummary {
     | "scraping"
     | "scrape complete"
     | "import complete"
+    | "partial import"
     | "failed";
   progress: {
     currentPage: number;
@@ -124,18 +126,18 @@ export default function HubspotImporterPage() {
   // Duplicates step
   const [duplicates, setDuplicates] = useState<DuplicateMatch[]>([]);
   const [confirmedDuplicates, setConfirmedDuplicates] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [duplicateLoading, setDuplicateLoading] = useState(false);
 
   // Mapping step
   const [hubspotProperties, setHubspotProperties] = useState<HubspotProperty[]>(
-    []
+    [],
   );
   const [fieldMapping, setFieldMapping] =
     useState<FieldMapping>(DEFAULT_MAPPING);
   const [skippedFields, setSkippedFields] = useState<Set<keyof FieldMapping>>(
-    new Set()
+    new Set(),
   );
   const [propertiesLoading, setPropertiesLoading] = useState(false);
 
@@ -151,7 +153,7 @@ export default function HubspotImporterPage() {
   const companiesToImport =
     scrapeStatus?.companies.filter(
       (company) =>
-        !confirmedDuplicates.has(normalizeOrgNumber(company.orgNumber))
+        !confirmedDuplicates.has(normalizeOrgNumber(company.orgNumber)),
     ) || [];
 
   // Validate URL
@@ -179,7 +181,7 @@ export default function HubspotImporterPage() {
 
     try {
       const response = await fetch(
-        `/api/scrape/start?url=${encodeURIComponent(url)}`
+        `/api/scrape/start?url=${encodeURIComponent(url)}`,
       );
       const data = await response.json();
 
@@ -296,7 +298,7 @@ export default function HubspotImporterPage() {
   // Toggle duplicate confirmation
   const toggleDuplicate = (
     orgNumber: string,
-    matchType?: "org_number" | "name_similarity"
+    matchType?: "org_number" | "name_similarity",
   ) => {
     // Prevent toggling org number matches - they should always be excluded
     if (matchType === "org_number") {
@@ -501,10 +503,11 @@ export default function HubspotImporterPage() {
       setUrl(data.sourceUrl || "");
       setCurrentStep("scraping");
 
-      // If job is scrape complete or import complete, allow user to proceed
+      // If job is scrape complete, import complete, or partial import, allow user to proceed
       if (
         data.status === "scrape complete" ||
-        data.status === "import complete"
+        data.status === "import complete" ||
+        data.status === "partial import"
       ) {
         // User can proceed to duplicates step
       } else if (data.status === "scraping" || data.status === "pending") {
@@ -552,7 +555,7 @@ export default function HubspotImporterPage() {
     ? Math.round(
         (scrapeStatus.progress.companiesScraped /
           Math.max(1, scrapeStatus.progress.totalCompanies)) *
-          100
+          100,
       )
     : 0;
 
@@ -609,7 +612,7 @@ export default function HubspotImporterPage() {
 
   const estimateRemainingTime = (
     companiesScraped: number,
-    totalCompanies: number
+    totalCompanies: number,
   ): number => {
     const remainingCompanies = totalCompanies - companiesScraped;
     if (remainingCompanies <= 0) return 0;
@@ -1215,7 +1218,7 @@ export default function HubspotImporterPage() {
             <div
               className={`step ${currentStep === "scraping" ? "active" : ""} ${
                 ["duplicates", "mapping", "importing", "complete"].includes(
-                  currentStep
+                  currentStep,
                 )
                   ? "completed"
                   : ""
@@ -1353,6 +1356,8 @@ export default function HubspotImporterPage() {
                           <span style={{ color: "#ff9500" }}>✓</span>
                         ) : scrapeStatus.status === "import complete" ? (
                           <span style={{ color: "var(--success)" }}>✓</span>
+                        ) : scrapeStatus.status === "partial import" ? (
+                          <span style={{ color: "var(--warning)" }}>⚠</span>
                         ) : scrapeStatus.status === "failed" ? (
                           <span style={{ color: "var(--error)" }}>✗</span>
                         ) : (
@@ -1370,6 +1375,8 @@ export default function HubspotImporterPage() {
                           ? "Scrape Complete"
                           : scrapeStatus.status === "import complete"
                           ? "Import Complete"
+                          : scrapeStatus.status === "partial import"
+                          ? "Partial Import"
                           : scrapeStatus.status === "failed"
                           ? "Failed"
                           : ""}
@@ -1391,7 +1398,7 @@ export default function HubspotImporterPage() {
                           ~
                           {estimateRemainingTime(
                             scrapeStatus.progress.companiesScraped,
-                            scrapeStatus.progress.totalCompanies
+                            scrapeStatus.progress.totalCompanies,
                           )}
                           s remaining
                         </span>
@@ -1445,7 +1452,7 @@ export default function HubspotImporterPage() {
                               <td>
                                 {company.revenue
                                   ? `${parseInt(
-                                      company.revenue
+                                      company.revenue,
                                     ).toLocaleString()} TSEK`
                                   : "-"}
                               </td>
@@ -1458,7 +1465,8 @@ export default function HubspotImporterPage() {
                   </div>
 
                   {(scrapeStatus.status === "scrape complete" ||
-                    scrapeStatus.status === "import complete") && (
+                    scrapeStatus.status === "import complete" ||
+                    scrapeStatus.status === "partial import") && (
                     <div className="action-bar">
                       <button className="btn btn-secondary" onClick={resetAll}>
                         Start Over
@@ -1572,7 +1580,7 @@ export default function HubspotImporterPage() {
                               >();
                               duplicates.forEach((dup) => {
                                 const normalizedOrgNum = normalizeOrgNumber(
-                                  dup.scrapedCompany.orgNumber
+                                  dup.scrapedCompany.orgNumber,
                                 );
                                 duplicateMap.set(normalizedOrgNum, dup);
                               });
@@ -1581,7 +1589,7 @@ export default function HubspotImporterPage() {
                               const companiesWithDuplicates =
                                 scrapeStatus.companies.map((company) => {
                                   const normalizedOrgNum = normalizeOrgNumber(
-                                    company.orgNumber
+                                    company.orgNumber,
                                   );
                                   const duplicate =
                                     duplicateMap.get(normalizedOrgNum);
@@ -1625,7 +1633,7 @@ export default function HubspotImporterPage() {
                               return companiesWithDuplicates.map(
                                 (item, idx) => {
                                   const isExcluded = confirmedDuplicates.has(
-                                    normalizeOrgNumber(item.company.orgNumber)
+                                    normalizeOrgNumber(item.company.orgNumber),
                                   );
                                   const isOrgNumberMatch =
                                     item.duplicate?.matchType === "org_number";
@@ -1637,7 +1645,7 @@ export default function HubspotImporterPage() {
                                         isClickable &&
                                         toggleDuplicate(
                                           item.company.orgNumber,
-                                          item.duplicate?.matchType
+                                          item.duplicate?.matchType,
                                         )
                                       }
                                       style={{
@@ -1689,7 +1697,7 @@ export default function HubspotImporterPage() {
                                               ? "Org Number"
                                               : `Name (${Math.round(
                                                   (item.duplicate.similarity ||
-                                                    0) * 100
+                                                    0) * 100,
                                                 )}%)`}
                                           </span>
                                         ) : (
@@ -1722,7 +1730,7 @@ export default function HubspotImporterPage() {
                                       </td>
                                     </tr>
                                   );
-                                }
+                                },
                               );
                             })()}
                           </tbody>
@@ -1827,7 +1835,7 @@ export default function HubspotImporterPage() {
 
                         return allFields.map(({ field, label, required }) => {
                           const isNonEditable = nonEditableFields.some(
-                            (f) => f.field === field
+                            (f) => f.field === field,
                           );
                           // A field is skipped if it's in skippedFields AND has no value
                           // Non-editable fields can never be skipped
@@ -1886,7 +1894,7 @@ export default function HubspotImporterPage() {
                                       .map(
                                         (word) =>
                                           word.charAt(0).toUpperCase() +
-                                          word.slice(1).toLowerCase()
+                                          word.slice(1).toLowerCase(),
                                       )
                                       .join(" ");
 
@@ -2053,7 +2061,7 @@ export default function HubspotImporterPage() {
                           // Get property label for display
                           const getPropertyLabel = (propertyName: string) => {
                             const prop = hubspotProperties.find(
-                              (p) => p.name === propertyName
+                              (p) => p.name === propertyName,
                             );
                             if (prop && prop.label && prop.label.length > 2) {
                               return prop.label;
@@ -2063,7 +2071,7 @@ export default function HubspotImporterPage() {
                               .map(
                                 (word) =>
                                   word.charAt(0).toUpperCase() +
-                                  word.slice(1).toLowerCase()
+                                  word.slice(1).toLowerCase(),
                               )
                               .join(" ");
                           };
@@ -2075,7 +2083,7 @@ export default function HubspotImporterPage() {
                           ) {
                             previewData.push({
                               hubspotProperty: getPropertyLabel(
-                                fieldMapping.organizationName
+                                fieldMapping.organizationName,
                               ),
                               value: sampleCompany.organizationName,
                               isMapped: true,
@@ -2087,7 +2095,7 @@ export default function HubspotImporterPage() {
                           ) {
                             previewData.push({
                               hubspotProperty: getPropertyLabel(
-                                fieldMapping.orgNumber
+                                fieldMapping.orgNumber,
                               ),
                               value: sampleCompany.orgNumber,
                               isMapped: true,
@@ -2096,7 +2104,7 @@ export default function HubspotImporterPage() {
                           if (fieldMapping.zipCode && sampleCompany.zipCode) {
                             previewData.push({
                               hubspotProperty: getPropertyLabel(
-                                fieldMapping.zipCode
+                                fieldMapping.zipCode,
                               ),
                               value: sampleCompany.zipCode,
                               isMapped: true,
@@ -2105,7 +2113,7 @@ export default function HubspotImporterPage() {
                           if (fieldMapping.city && sampleCompany.city) {
                             previewData.push({
                               hubspotProperty: getPropertyLabel(
-                                fieldMapping.city
+                                fieldMapping.city,
                               ),
                               value: sampleCompany.city,
                               isMapped: true,
@@ -2114,7 +2122,7 @@ export default function HubspotImporterPage() {
                           if (fieldMapping.revenue && sampleCompany.revenue) {
                             previewData.push({
                               hubspotProperty: getPropertyLabel(
-                                fieldMapping.revenue
+                                fieldMapping.revenue,
                               ),
                               value: sampleCompany.revenue,
                               isMapped: true,
@@ -2126,7 +2134,7 @@ export default function HubspotImporterPage() {
                           ) {
                             previewData.push({
                               hubspotProperty: getPropertyLabel(
-                                fieldMapping.employees
+                                fieldMapping.employees,
                               ),
                               value: sampleCompany.employees,
                               isMapped: true,
@@ -2138,7 +2146,7 @@ export default function HubspotImporterPage() {
                           ) {
                             previewData.push({
                               hubspotProperty: getPropertyLabel(
-                                fieldMapping.allabolagUrl
+                                fieldMapping.allabolagUrl,
                               ),
                               value: sampleCompany.allabolagUrl,
                               isMapped: true,
@@ -2446,13 +2454,15 @@ export default function HubspotImporterPage() {
                           className={`badge ${
                             job.status === "import complete"
                               ? "badge-success"
-                              : job.status === "scrape complete"
-                              ? "badge-warning"
-                              : job.status === "failed"
-                              ? "badge-error"
-                              : job.status === "scraping"
-                              ? "badge-warning"
-                              : ""
+                              : job.status === "partial import"
+                                ? "badge-warning"
+                                : job.status === "scrape complete"
+                                  ? "badge-warning"
+                                  : job.status === "failed"
+                                    ? "badge-error"
+                                    : job.status === "scraping"
+                                      ? "badge-warning"
+                                      : ""
                           }`}
                           style={
                             job.status === "scrape complete"
@@ -2461,15 +2471,23 @@ export default function HubspotImporterPage() {
                                   color: "#fff",
                                   whiteSpace: "nowrap",
                                 }
-                              : { whiteSpace: "nowrap" }
+                              : job.status === "partial import"
+                                ? {
+                                    backgroundColor: "var(--warning)",
+                                    color: "#fff",
+                                    whiteSpace: "nowrap",
+                                  }
+                                : { whiteSpace: "nowrap" }
                           }
                         >
                           {job.status === "scrape complete"
                             ? "Scrape Complete"
                             : job.status === "import complete"
-                            ? "Import Complete"
-                            : job.status.charAt(0).toUpperCase() +
-                              job.status.slice(1)}
+                              ? "Import Complete"
+                              : job.status === "partial import"
+                                ? "Partial Import"
+                                : job.status.charAt(0).toUpperCase() +
+                                  job.status.slice(1)}
                         </span>
                       </td>
                       <td>
@@ -2492,15 +2510,16 @@ export default function HubspotImporterPage() {
                       <td>{job.companyCount.toLocaleString()}</td>
                       <td>
                         {job.status === "scrape complete" ||
-                        job.status === "import complete"
+                        job.status === "import complete" ||
+                        job.status === "partial import"
                           ? "100%"
                           : job.status === "failed"
-                          ? "Failed"
-                          : `${Math.round(
-                              (job.progress.companiesScraped /
-                                Math.max(1, job.progress.totalCompanies)) *
-                                100
-                            )}%`}
+                            ? "Failed"
+                            : `${Math.round(
+                                (job.progress.companiesScraped /
+                                  Math.max(1, job.progress.totalCompanies)) *
+                                  100,
+                              )}%`}
                       </td>
                       <td style={{ fontSize: "0.875rem" }}>
                         {formatDate(job.startedAt)}

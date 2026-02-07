@@ -12,7 +12,13 @@ export interface ScrapedCompany {
 // Job status for scraping progress
 export interface ScrapeJob {
   jobId: string;
-  status: "pending" | "scraping" | "scrape complete" | "import complete" | "failed";
+  status:
+    | "pending"
+    | "scraping"
+    | "scrape complete"
+    | "import complete"
+    | "partial import"
+    | "failed";
   progress: {
     currentPage: number;
     totalPages: number;
