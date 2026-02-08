@@ -63,20 +63,18 @@ export function normalizeCompanyName(name: string): string {
   return (
     name
       .toLowerCase()
-      // Remove common Swedish company prefixes (e.g., "aktiebolaget falu plast")
+      // Remove common Swedish company prefixes/suffixes regardless of position
       .replace(
-        /^(aktiebolaget|aktiebolag|handelsbolaget|handelsbolag|kommanditbolaget|kommanditbolag|enskilda\s*firman|enskild\s*firman)\s+/i,
+        /\b(aktiebolaget|aktiebolag|handelsbolaget|handelsbolag|kommanditbolaget|kommanditbolag|enskilda\s*firman|enskild\s*firman)\b/gi,
         "",
       )
-      // Remove common Swedish company suffixes
+      // Remove common Swedish company abbreviations regardless of position
       .replace(
-        /\s+(ab|aktiebolag|aktiebolaget|hb|handelsbolag|handelsbolaget|kb|kommanditbolag|kommanditbolaget|ef|ek\s*för\.?|enskild\s*firma|enskilda\s*firman)\s*$/i,
+        /\b(ab|hb|kb|ef|ek\s*för\.?|enskild\s*firma|enskilda\s*firman)\b/gi,
         "",
       )
-      // Remove common business type indicators (prefixes)
-      .replace(/^(inc\.?|ltd\.?|llc\.?|gmbh|co\.?|corp\.?)\s+/i, "")
-      // Remove common business type indicators (suffixes)
-      .replace(/\s+(inc\.?|ltd\.?|llc\.?|gmbh|co\.?|corp\.?)\s*$/i, "")
+      // Remove common business type indicators regardless of position
+      .replace(/\b(inc\.?|ltd\.?|llc\.?|gmbh|co\.?|corp\.?)\b/gi, "")
       // Normalize whitespace
       .replace(/\s+/g, " ")
       .trim()
