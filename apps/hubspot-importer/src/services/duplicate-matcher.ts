@@ -30,7 +30,7 @@ function levenshteinDistance(str1: string, str2: string): number {
       matrix[i][j] = Math.min(
         matrix[i - 1][j] + 1, // deletion
         matrix[i][j - 1] + 1, // insertion
-        matrix[i - 1][j - 1] + cost // substitution
+        matrix[i - 1][j - 1] + cost, // substitution
       );
     }
   }
@@ -63,12 +63,12 @@ function normalizeCompanyName(name: string): string {
       // Remove common Swedish company prefixes (e.g., "aktiebolaget falu plast")
       .replace(
         /^(aktiebolaget|aktiebolag|handelsbolaget|handelsbolag|kommanditbolaget|kommanditbolag|enskilda\s*firman|enskild\s*firman)\s+/i,
-        ""
+        "",
       )
       // Remove common Swedish company suffixes
       .replace(
         /\s+(ab|aktiebolag|aktiebolaget|hb|handelsbolag|handelsbolaget|kb|kommanditbolag|kommanditbolaget|ef|ek\s*för\.?|enskild\s*firma|enskilda\s*firman)\s*$/i,
-        ""
+        "",
       )
       // Remove common business type indicators (prefixes)
       .replace(/^(inc\.?|ltd\.?|llc\.?|gmbh|co\.?|corp\.?)\s+/i, "")
@@ -98,7 +98,7 @@ const NAME_SIMILARITY_THRESHOLD = 0.75;
  */
 export async function findDuplicates(
   scrapedCompanies: ScrapedCompany[],
-  orgNumberPropertyName: string = "org_number"
+  orgNumberPropertyName: string = "org_number",
 ): Promise<DuplicateMatch[]> {
   // Fetch all existing companies from Hubspot
   const hubspotCompanies = await getAllCompanies([
@@ -161,7 +161,7 @@ export async function findDuplicates(
 
     const scraped = scrapedCompanies[i];
     const normalizedScrapedName = normalizeCompanyName(
-      scraped.organizationName
+      scraped.organizationName,
     );
 
     let bestMatch: HubspotCompany | null = null;
@@ -174,7 +174,7 @@ export async function findDuplicates(
       const normalizedHubspotName = normalizeCompanyName(hubspotName);
       const similarity = stringSimilarity(
         normalizedScrapedName,
-        normalizedHubspotName
+        normalizedHubspotName,
       );
 
       if (
@@ -226,24 +226,10 @@ export async function findDuplicates(
 }
 
 /**
- * Filter out duplicates from scraped companies list
- */
-export function filterOutDuplicates(
-  scrapedCompanies: ScrapedCompany[],
-  duplicates: DuplicateMatch[],
-  confirmedDuplicateOrgNumbers: Set<string>
-): ScrapedCompany[] {
-  return scrapedCompanies.filter((company) => {
-    const normalizedOrgNum = normalizeOrgNumber(company.orgNumber);
-    return !confirmedDuplicateOrgNumbers.has(normalizedOrgNum);
-  });
-}
-
-/**
  * Utility to get org number set from duplicate matches
  */
 export function getDuplicateOrgNumbers(
-  duplicates: DuplicateMatch[]
+  duplicates: DuplicateMatch[],
 ): Set<string> {
   const orgNumbers = new Set<string>();
 
