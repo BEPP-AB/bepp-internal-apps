@@ -8,7 +8,13 @@ import {
   FieldMapping,
   ImportResult,
 } from "@/src/types/company";
-import { normalizeOrgNumber } from "@/src/services/duplicate-matcher";
+import {
+  normalizeOrgNumber,
+  normalizeCompanyName,
+  stringSimilarity,
+  levenshteinDistance,
+  NAME_SIMILARITY_THRESHOLD,
+} from "@/src/services/duplicate-matcher";
 import {
   MIN_DELAY_MS,
   MAX_DELAY_MS,
@@ -148,6 +154,12 @@ export default function HubspotImporterPage() {
   // Jobs list
   const [jobsList, setJobsList] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
+
+  // Test mode (easter egg)
+  const [testMode, setTestMode] = useState(false);
+  const [heroClickCount, setHeroClickCount] = useState(0);
+  const [testCompany1, setTestCompany1] = useState("");
+  const [testCompany2, setTestCompany2] = useState("");
 
   // Get companies to import (filtered by confirmed duplicates)
   const companiesToImport =
@@ -559,6 +571,44 @@ export default function HubspotImporterPage() {
       )
     : 0;
 
+  // Handle hero image click (easter egg trigger)
+  const handleHeroClick = () => {
+    const newCount = heroClickCount + 1;
+    setHeroClickCount(newCount);
+    if (newCount >= 5) {
+      setTestMode(true);
+      setHeroClickCount(0);
+    }
+    // Reset counter after 2 seconds
+    setTimeout(() => {
+      setHeroClickCount(0);
+    }, 2000);
+  };
+
+  // Calculate test mode comparison results
+  const testComparisonResults = (() => {
+    if (!testCompany1 || !testCompany2) {
+      return null;
+    }
+
+    const normalized1 = normalizeCompanyName(testCompany1);
+    const normalized2 = normalizeCompanyName(testCompany2);
+    const similarity = stringSimilarity(normalized1, normalized2);
+    const distance = levenshteinDistance(normalized1, normalized2);
+    const maxLength = Math.max(normalized1.length, normalized2.length);
+
+    return {
+      original1: testCompany1,
+      original2: testCompany2,
+      normalized1,
+      normalized2,
+      similarity,
+      distance,
+      maxLength,
+      similarityPercent: Math.round(similarity * 100),
+    };
+  })();
+
   // Handle password submission
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -724,8 +774,427 @@ export default function HubspotImporterPage() {
           src="/images/hubspot-importer-hero.webp"
           alt="Hero"
           className="hero-image"
+          onClick={handleHeroClick}
+          style={{ cursor: "pointer" }}
+          title="Click me 5 times..."
         />
       </section>
+
+      {/* Test Mode (Easter Egg) */}
+      {testMode && (
+        <div
+          className="card"
+          style={{
+            marginBottom: "32px",
+            border: "2px solid var(--accent)",
+            backgroundColor: "var(--bg-card)",
+            position: "relative",
+          }}
+        >
+          <button
+            onClick={() => setTestMode(false)}
+            style={{
+              position: "absolute",
+              top: "16px",
+              right: "16px",
+              background: "transparent",
+              border: "none",
+              fontSize: "24px",
+              cursor: "pointer",
+              color: "var(--text-secondary)",
+              padding: "4px 8px",
+              borderRadius: "var(--radius-sm)",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--bg-input)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--text-secondary)";
+            }}
+          >
+            ×
+          </button>
+
+          <div style={{ paddingRight: "48px" }}>
+            <h2 style={{ marginTop: 0, marginBottom: "8px" }}>
+              🎯 Test Mode - Company Name Comparison
+            </h2>
+            <p
+              style={{
+                color: "var(--text-secondary)",
+                marginBottom: "24px",
+                fontSize: "0.95rem",
+              }}
+            >
+              Enter two company names to see how similar they are when compared
+              by the duplicate matching functions.
+            </p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "16px",
+                marginBottom: "24px",
+              }}
+            >
+              <div className="form-group">
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  Company Name 1
+                </label>
+                <input
+                  type="text"
+                  value={testCompany1}
+                  onChange={(e) => setTestCompany1(e.target.value)}
+                  placeholder="e.g., Aktiebolaget Example AB"
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    fontSize: "1rem",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "var(--radius-md)",
+                    backgroundColor: "var(--bg-input)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  Company Name 2
+                </label>
+                <input
+                  type="text"
+                  value={testCompany2}
+                  onChange={(e) => setTestCompany2(e.target.value)}
+                  placeholder="e.g., Example Aktiebolag"
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    fontSize: "1rem",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "var(--radius-md)",
+                    backgroundColor: "var(--bg-input)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+              </div>
+            </div>
+
+            {testComparisonResults && (
+              <div
+                style={{
+                  padding: "20px",
+                  backgroundColor: "var(--bg-input)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <h3
+                  style={{
+                    marginTop: 0,
+                    marginBottom: "16px",
+                    fontSize: "1.125rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Comparison Results
+                </h3>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                    gap: "16px",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Original Name 1
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.95rem",
+                        color: "var(--text-primary)",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {testComparisonResults.original1 || (
+                        <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                          (empty)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Normalized Name 1
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.95rem",
+                        color: "var(--text-primary)",
+                        wordBreak: "break-word",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {testComparisonResults.normalized1 || (
+                        <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                          (empty)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Original Name 2
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.95rem",
+                        color: "var(--text-primary)",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {testComparisonResults.original2 || (
+                        <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                          (empty)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Normalized Name 2
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.95rem",
+                        color: "var(--text-primary)",
+                        wordBreak: "break-word",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {testComparisonResults.normalized2 || (
+                        <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                          (empty)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "16px",
+                      backgroundColor: "var(--bg-card)",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Similarity Score
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "2rem",
+                        fontWeight: 700,
+                        color:
+                          testComparisonResults.similarityPercent >= 90
+                            ? "var(--success)"
+                            : testComparisonResults.similarityPercent >= 50
+                              ? "var(--warning)"
+                              : "var(--error)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {testComparisonResults.similarityPercent}%
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      {testComparisonResults.similarity.toFixed(4)} / 1.0
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "16px",
+                      backgroundColor: "var(--bg-card)",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Levenshtein Distance
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "2rem",
+                        fontWeight: 700,
+                        color: "var(--text-primary)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {testComparisonResults.distance}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      Max length: {testComparisonResults.maxLength}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "16px",
+                      backgroundColor: "var(--bg-card)",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Match Status
+                    </div>
+                    <div style={{ marginBottom: "4px" }}>
+                      <span
+                        className={`badge ${
+                          testComparisonResults.similarity >= NAME_SIMILARITY_THRESHOLD
+                            ? "badge-warning"
+                            : "badge-success"
+                        }`}
+                        style={{ fontSize: "0.875rem" }}
+                      >
+                        {testComparisonResults.similarity >= NAME_SIMILARITY_THRESHOLD
+                          ? `Would Match (≥${Math.round(NAME_SIMILARITY_THRESHOLD * 100)}%)`
+                          : "No Match"}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      Threshold: {Math.round(NAME_SIMILARITY_THRESHOLD * 100)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!testComparisonResults && (
+              <div
+                style={{
+                  padding: "32px",
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  fontStyle: "italic",
+                }}
+              >
+                Enter two company names above to see comparison results
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Mode Selector - Three Column Layout */}
       <div

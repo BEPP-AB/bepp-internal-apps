@@ -3,8 +3,9 @@ import { HubspotCompany, getAllCompanies } from "./hubspot-client";
 
 /**
  * Calculate Levenshtein distance between two strings
+ * Exported for test mode
  */
-function levenshteinDistance(str1: string, str2: string): number {
+export function levenshteinDistance(str1: string, str2: string): number {
   const s1 = str1.toLowerCase();
   const s2 = str2.toLowerCase();
 
@@ -41,8 +42,9 @@ function levenshteinDistance(str1: string, str2: string): number {
 /**
  * Calculate similarity score between two strings (0-1)
  * 1 = identical, 0 = completely different
+ * Exported for test mode
  */
-function stringSimilarity(str1: string, str2: string): number {
+export function stringSimilarity(str1: string, str2: string): number {
   if (!str1 || !str2) return 0;
 
   const maxLength = Math.max(str1.length, str2.length);
@@ -55,8 +57,9 @@ function stringSimilarity(str1: string, str2: string): number {
 /**
  * Normalize company name for comparison
  * Removes common prefixes, suffixes and normalizes whitespace
+ * Exported for test mode
  */
-function normalizeCompanyName(name: string): string {
+export function normalizeCompanyName(name: string): string {
   return (
     name
       .toLowerCase()
@@ -91,7 +94,7 @@ export function normalizeOrgNumber(orgNumber: string): string {
   return String(orgNumber).trim().replace(/\D/g, "");
 }
 
-const NAME_SIMILARITY_THRESHOLD = 0.5;
+export const NAME_SIMILARITY_THRESHOLD = 0.5;
 
 /**
  * Find potential duplicates by comparing scraped companies with Hubspot companies
