@@ -91,7 +91,7 @@ export function normalizeOrgNumber(orgNumber: string): string {
   return String(orgNumber).trim().replace(/\D/g, "");
 }
 
-const NAME_SIMILARITY_THRESHOLD = 0.75;
+const NAME_SIMILARITY_THRESHOLD = 0.5;
 
 /**
  * Find potential duplicates by comparing scraped companies with Hubspot companies
@@ -110,7 +110,7 @@ export async function findDuplicates(
   const duplicates: DuplicateMatch[] = [];
   const processedScrapedIndices = new Set<number>();
 
-  // Create a map of Hubspot companies by normalized org number for quick lookup
+  /*   // Create a map of Hubspot companies by normalized org number for quick lookup
   const hubspotByOrgNumber = new Map<string, HubspotCompany>();
   for (const company of hubspotCompanies) {
     const orgNumber = company.properties[orgNumberPropertyName];
@@ -152,7 +152,7 @@ export async function findDuplicates(
         }
       }
     }
-  }
+  } */
 
   // Second pass: Check for name similarity matches
   for (let i = 0; i < scrapedCompanies.length; i++) {
