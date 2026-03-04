@@ -78,18 +78,18 @@ export async function parseFilterUrl(
 
     // Try the specific class first
     const headerText = $('h2[class*="SearchResultList-listHeader"]').text();
-    const countMatch = headerText.match(/(\d+)\s*företag/i);
+    const countMatch = headerText.match(/([\d\s]+)\s*företag/i);
     if (countMatch) {
-      totalCompanies = parseInt(countMatch[1], 10);
+      totalCompanies = parseInt(countMatch[1].replace(/\s/g, ""), 10);
     }
 
     // Fallback: look for any h2 containing "företag"
     if (totalCompanies === 0) {
       $("h2").each((_, el) => {
         const text = $(el).text();
-        const match = text.match(/(\d+)\s*företag/i);
+        const match = text.match(/([\d\s]+)\s*företag/i);
         if (match) {
-          totalCompanies = parseInt(match[1], 10);
+          totalCompanies = parseInt(match[1].replace(/\s/g, ""), 10);
           return false; // break
         }
       });
