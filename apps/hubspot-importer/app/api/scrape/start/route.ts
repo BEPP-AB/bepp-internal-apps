@@ -8,7 +8,6 @@ import {
 import { generateJobId, saveJob } from "@/src/services/job-storage";
 import { ScrapeJob, ScrapedCompany } from "@/src/types/company";
 
-export const maxDuration = 300; // 5 minutes max for Vercel
 
 interface StartScrapeRequest {
   url: string;
