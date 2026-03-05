@@ -333,10 +333,11 @@ function simulateReadingTime(companiesOnPage: number): number {
  */
 export async function* scrapeAllCompanies(
   filterInfo: ParsedFilterInfo,
+  startPage: number = 1,
   onProgress?: (progress: ScrapeProgress) => Promise<void>
 ): AsyncGenerator<ScrapeProgress> {
   const allCompanies: ScrapedCompany[] = [];
-  let currentPage = 1;
+  let currentPage = startPage;
   let previousUrl: string | undefined;
 
   // Add initial delay to simulate user arriving at the page

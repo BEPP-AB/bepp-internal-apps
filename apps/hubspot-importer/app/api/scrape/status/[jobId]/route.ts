@@ -31,6 +31,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       companies: job.companies,
       startedAt: job.startedAt,
       completedAt: job.completedAt,
+      lastUpdatedAt: job.lastUpdatedAt,
       error: job.error,
       sourceUrl: job.sourceUrl,
     });

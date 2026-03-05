@@ -39,6 +39,7 @@ interface ScrapeStatus {
   status:
     | "pending"
     | "scraping"
+    | "paused"
     | "scrape complete"
     | "import complete"
     | "partial import"
@@ -54,6 +55,7 @@ interface ScrapeStatus {
   sourceUrl?: string;
   startedAt?: number;
   completedAt?: number;
+  lastUpdatedAt?: number;
 }
 
 interface DuplicatesResponse {
@@ -77,6 +79,7 @@ interface JobSummary {
   status:
     | "pending"
     | "scraping"
+    | "paused"
     | "scrape complete"
     | "import complete"
     | "partial import"
@@ -89,9 +92,19 @@ interface JobSummary {
   };
   startedAt: number;
   completedAt?: number;
+  lastUpdatedAt?: number;
   error?: string;
   sourceUrl: string;
   companyCount: number;
+}
+
+// Stale job detection — if scraping but no update in 2 minutes, consider timed out
+const STALE_JOB_THRESHOLD_MS = 2 * 60 * 1000;
+
+function isJobStale(status: ScrapeStatus | JobSummary): boolean {
+  if (status.status !== "scraping") return false;
+  const lastUpdate = status.lastUpdatedAt || status.startedAt || 0;
+  return Date.now() - lastUpdate > STALE_JOB_THRESHOLD_MS;
 }
 
 // Default field mapping suggestions
@@ -242,6 +255,50 @@ export default function HubspotImporterPage() {
     }
   };
 
+  // Resume a stuck/failed scrape job
+  const resumeJob = async (jobId: string) => {
+    try {
+      setCurrentStep("scraping");
+      setViewMode("import");
+
+      const response = await fetch(`/api/scrape/resume/${jobId}`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (data.error) {
+        console.error("Resume error:", data.error);
+        return;
+      }
+
+      pollScrapeStatus(data.jobId);
+    } catch (error) {
+      console.error("Resume error:", error);
+    }
+  };
+
+  // Pause an active scrape job
+  const pauseJob = async (jobId: string) => {
+    try {
+      const response = await fetch(`/api/scrape/pause/${jobId}`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (data.error) {
+        console.error("Pause error:", data.error);
+        return;
+      }
+
+      // Update local state immediately
+      setScrapeStatus((prev) =>
+        prev ? { ...prev, status: "paused", lastUpdatedAt: Date.now() } : prev
+      );
+    } catch (error) {
+      console.error("Pause error:", error);
+    }
+  };
+
   // Poll scrape status
   const pollScrapeStatus = useCallback(async (jobId: string) => {
     const poll = async () => {
@@ -252,6 +309,8 @@ export default function HubspotImporterPage() {
         setScrapeStatus(data);
 
         if (data.status === "scraping" || data.status === "pending") {
+          // Stop polling if job is stale (timed out)
+          if (isJobStale(data)) return;
           // Continue polling
           setTimeout(poll, 2000);
         }
@@ -523,8 +582,10 @@ export default function HubspotImporterPage() {
       ) {
         // User can proceed to duplicates step
       } else if (data.status === "scraping" || data.status === "pending") {
-        // Continue polling
-        pollScrapeStatus(jobId);
+        // Don't poll if job is stale (timed out)
+        if (!isJobStale(data)) {
+          pollScrapeStatus(jobId);
+        }
       }
     } catch (error) {
       console.error("Error loading job:", error);
@@ -1829,6 +1890,10 @@ export default function HubspotImporterPage() {
                           <span style={{ color: "#f59e0b", fontWeight: 600 }}>⚠</span>
                         ) : scrapeStatus.status === "failed" ? (
                           <span style={{ color: "var(--error)" }}>✗</span>
+                        ) : scrapeStatus.status === "paused" ? (
+                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏸</span>
+                        ) : isJobStale(scrapeStatus) ? (
+                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏱</span>
                         ) : (
                           <span
                             className="loading-spinner"
@@ -1848,6 +1913,10 @@ export default function HubspotImporterPage() {
                           ? "Partial Import"
                           : scrapeStatus.status === "failed"
                           ? "Failed"
+                          : scrapeStatus.status === "paused"
+                          ? "Paused"
+                          : isJobStale(scrapeStatus)
+                          ? "Timed Out"
                           : ""}
                       </div>
                     </div>
@@ -1862,7 +1931,7 @@ export default function HubspotImporterPage() {
                     </div>
                     <div className="progress-text">
                       <span>{scrapeProgress}% complete</span>
-                      {scrapeStatus.status === "scraping" && (
+                      {scrapeStatus.status === "scraping" && !isJobStale(scrapeStatus) && (
                         <span>
                           ~
                           {estimateRemainingTime(
@@ -1875,10 +1944,36 @@ export default function HubspotImporterPage() {
                     </div>
                   </div>
 
+                  {scrapeStatus.status === "scraping" && !isJobStale(scrapeStatus) && (
+                    <div style={{ marginTop: "12px", textAlign: "right" }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => pauseJob(scrapeStatus.jobId)}
+                        style={{ fontSize: "0.875rem", padding: "8px 16px" }}
+                      >
+                        Pause Scraping
+                      </button>
+                    </div>
+                  )}
+
                   {scrapeStatus.error && (
                     <div className="alert alert-error">
                       <span className="alert-icon">⚠️</span>
                       <div>{scrapeStatus.error}</div>
+                    </div>
+                  )}
+
+                  {(scrapeStatus.status === "failed" || scrapeStatus.status === "paused" || isJobStale(scrapeStatus)) && (
+                    <div className="action-bar">
+                      <button className="btn btn-secondary" onClick={resetAll}>
+                        Start Over
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => resumeJob(scrapeStatus.jobId)}
+                      >
+                        Resume Scraping
+                      </button>
                     </div>
                   )}
 
@@ -2929,9 +3024,13 @@ export default function HubspotImporterPage() {
                                   ? "badge-warning"
                                   : job.status === "failed"
                                     ? "badge-error"
-                                    : job.status === "scraping"
+                                    : job.status === "paused"
                                       ? "badge-warning"
-                                      : ""
+                                      : job.status === "scraping" && isJobStale(job)
+                                        ? "badge-error"
+                                        : job.status === "scraping"
+                                          ? "badge-warning"
+                                          : ""
                           }`}
                           style={
                             job.status === "scrape complete"
@@ -2957,8 +3056,10 @@ export default function HubspotImporterPage() {
                               ? "Import Complete"
                               : job.status === "partial import"
                                 ? "Partial Import"
-                                : job.status.charAt(0).toUpperCase() +
-                                  job.status.slice(1)}
+                                : job.status === "scraping" && isJobStale(job)
+                                  ? "Timed Out"
+                                  : job.status.charAt(0).toUpperCase() +
+                                    job.status.slice(1)}
                         </span>
                       </td>
                       <td>
@@ -2999,19 +3100,32 @@ export default function HubspotImporterPage() {
                         {formatDuration(job.startedAt, job.completedAt)}
                       </td>
                       <td>
-                        <button
-                          className="btn btn-primary"
-                          onClick={() => {
-                            loadJob(job.jobId);
-                            handleViewModeChange("import");
-                          }}
-                          style={{
-                            fontSize: "0.75rem",
-                            padding: "6px 12px",
-                          }}
-                        >
-                          Import
-                        </button>
+                        {job.status === "failed" || job.status === "paused" || isJobStale(job) ? (
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => resumeJob(job.jobId)}
+                            style={{
+                              fontSize: "0.75rem",
+                              padding: "6px 12px",
+                            }}
+                          >
+                            Resume
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                              loadJob(job.jobId);
+                              handleViewModeChange("import");
+                            }}
+                            style={{
+                              fontSize: "0.75rem",
+                              padding: "6px 12px",
+                            }}
+                          >
+                            Import
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

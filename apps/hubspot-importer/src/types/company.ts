@@ -15,6 +15,7 @@ export interface ScrapeJob {
   status:
     | "pending"
     | "scraping"
+    | "paused"
     | "scrape complete"
     | "import complete"
     | "partial import"
@@ -28,6 +29,7 @@ export interface ScrapeJob {
   companies: ScrapedCompany[];
   startedAt: number;
   completedAt?: number;
+  lastUpdatedAt?: number;
   error?: string;
   sourceUrl: string;
 }

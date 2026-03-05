@@ -5,7 +5,7 @@ import {
   scrapeAllCompanies,
   createScrapeJob,
 } from "@/src/services/allabolag-scraper";
-import { generateJobId, saveJob } from "@/src/services/job-storage";
+import { generateJobId, saveJob, loadJob } from "@/src/services/job-storage";
 import { ScrapeJob, ScrapedCompany } from "@/src/types/company";
 
 
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
         totalCompanies: filterInfo.totalCompanies,
       },
       companies: [],
+      lastUpdatedAt: Date.now(),
     };
 
     // Save initial job state
@@ -73,6 +74,26 @@ export async function POST(request: NextRequest) {
 
       try {
         for await (const progress of scrapeAllCompanies(filterInfo)) {
+          // Check if job was paused externally
+          const currentJob = await loadJob(jobId);
+          if (currentJob?.status === "paused") {
+            finalProgress = {
+              currentPage: progress.currentPage,
+              totalPages: progress.totalPages,
+              companiesScraped: progress.companiesScraped,
+              totalCompanies: progress.totalCompanies,
+            };
+            finalCompanies = progress.companies;
+            await saveJob({
+              ...job,
+              status: "paused",
+              progress: finalProgress,
+              companies: finalCompanies,
+              lastUpdatedAt: Date.now(),
+            });
+            return;
+          }
+
           // Update tracked progress
           finalProgress = {
             currentPage: progress.currentPage,
@@ -88,6 +109,7 @@ export async function POST(request: NextRequest) {
             status: "scraping",
             progress: finalProgress,
             companies: finalCompanies,
+            lastUpdatedAt: Date.now(),
           });
         }
 
@@ -98,6 +120,7 @@ export async function POST(request: NextRequest) {
           completedAt: Date.now(),
           progress: finalProgress,
           companies: finalCompanies,
+          lastUpdatedAt: Date.now(),
         });
       } catch (error) {
         console.error("Scraping error:", error);
@@ -109,6 +132,7 @@ export async function POST(request: NextRequest) {
           error: error instanceof Error ? error.message : "Unknown error",
           completedAt: Date.now(),
           companies: finalCompanies,
+          lastUpdatedAt: Date.now(),
         });
       }
     });

@@ -12,6 +12,7 @@ export async function GET() {
       progress: job.progress,
       startedAt: job.startedAt,
       completedAt: job.completedAt,
+      lastUpdatedAt: job.lastUpdatedAt,
       error: job.error,
       sourceUrl: job.sourceUrl,
       companyCount: job.companies.length,
